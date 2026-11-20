@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#5652ce">
+  <meta name="description" content="A math toolbox for equations, interactive graphs, calculus, dates and unit conversions.">
+  <title>Calculations · CAVEQIS</title>
+  <link rel="icon" type="image/png" href="static/caveqis.png">
+  <link rel="stylesheet" href="static/vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="static/style.css">
+  <script defer src="static/vendor/katex/katex.min.js"></script>
+  <script defer src="static/math-input.js"></script>
+  <script defer src="static/locale.js"></script>
+  <script defer src="static/examples.js"></script>
+  <script defer src="static/guide.js"></script>
+  <script defer src="static/units.js"></script>
+  <script defer src="static/utility-tools.js"></script>
+  <script defer src="static/graph-math.js"></script>
+  <script defer src="static/graph-canvas.js"></script>
+  <script defer src="static/graph-state.js"></script>
+  <script defer src="static/graph-library.js"></script>
+  <script defer src="static/graph-tool.js"></script>
+  <script defer src="static/formula-builder.js"></script>
+  <script defer src="static/app.js"></script>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <button class="sidebar-close icon-button" id="sidebar-close" aria-label="Close navigation" data-aria="关闭导航">✕</button>
+    <a href="#calculate" class="brand" aria-label="CAVEQIS home" data-aria="CAVEQIS 首页">
+      <img class="brand-icon" src="static/caveqis.png" alt="" width="43" height="43">
+      <span>CAVEQIS</span>
+    </a>
+    <nav aria-label="Math tools" data-aria="数学工具">
+      <button type="button" class="nav-item active" data-category="calculate"><span class="nav-icon" aria-hidden="true">⌘</span><span data-text="计算">Calculations</span></button>
+      <button type="button" class="nav-item" data-category="equations"><span class="nav-icon" aria-hidden="true">=</span><span data-text="方程">Equations</span></button>
+      <button type="button" class="nav-item" data-category="date"><span class="nav-icon" aria-hidden="true">▦</span><span data-text="日期计算">Date calculation</span></button>
+      <button type="button" class="nav-item" data-category="converter"><span class="nav-icon" aria-hidden="true">⇄</span><span data-text="转换器">Converter</span></button>
+      <button type="button" class="nav-item" data-category="graph"><span class="nav-icon" aria-hidden="true">⌁</span><span data-text="图表">Graphing</span></button>
+      <button type="button" class="nav-item" id="help-sidebar" aria-haspopup="dialog"><span class="nav-icon" aria-hidden="true">?</span><span data-text="使用指南">Guide</span></button>
+    </nav>
+    <div class="sidebar-bottom"><span class="engine-dot"></span><span data-text="由 SymPy 提供计算支持">Powered by SymPy</span></div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <div class="breadcrumb"><button class="mobile-menu icon-button" id="mobile-menu" aria-label="Toggle navigation" data-aria="切换导航" aria-expanded="false" aria-controls="sidebar">☰</button><span data-text="工作台">Workspace</span><span class="crumb-divider">/</span><strong id="breadcrumb-current">Scientific calculator</strong></div>
+      <div class="top-actions">
+        <span class="service-state" id="service-state"><span class="state-dot"></span><span id="service-label">Connecting</span></span>
+        <button type="button" class="icon-button" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme" data-aria="切换主题" aria-pressed="false">◐</button>
+        <select id="language-select" class="language-select" aria-label="Language" data-aria="语言"><option value="en">English</option><option value="zh" lang="zh-CN">中文</option></select>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-heading"><div><h1 id="page-title">Calculations</h1><p id="page-description">Choose a calculation type and an operation.</p></div><div class="heading-art" aria-hidden="true"><span id="heading-formula">f(x)</span></div></section>
+      <div class="content-grid" id="math-workspace">
+        <div class="main-column">
+          <section class="card input-card" id="input-card" aria-labelledby="input-title">
+            <div class="card-heading" id="input-card-heading"><h2 id="input-title"><span class="heading-square"></span><span data-text="输入与设置">Input and settings</span></h2><button type="button" class="text-button" id="reset-form" data-text="重置">Reset</button></div>
+            <form id="calculation-form">
+              <div id="tool-fields"></div>
+              <div class="advanced-settings" id="advanced-settings"><label><span data-text="有效数字">Significant digits</span><select id="precision" name="precision"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6" selected>6</option><option value="31">31</option></select></label><label><span data-text="变量假设">Variable assumptions</span><select id="assumption" name="assumption"><option value="complex" data-text="一般符号（复数）">Complex (default)</option><option value="real" data-text="实数变量">Real</option><option value="positive" data-text="正实数变量">Positive real</option></select></label></div>
+              <div class="submit-row"><span class="keyboard-hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span><button type="submit" class="primary-button" id="calculate-button"><span class="button-symbol" aria-hidden="true">=</span><span id="calculate-label">Calculate</span></button></div>
+            </form>
+          </section>
+
+          <section class="card result-card" id="result-card" aria-labelledby="result-title" aria-busy="false">
+            <div class="card-heading"><h2 id="result-title"><span class="heading-square result-square"></span><span data-text="结果">Result</span></h2><div class="result-tools"><span class="elapsed" id="elapsed"></span><button type="button" class="text-button" id="send-result-graph" data-text="发送到图表" hidden>Send to graph</button><button type="button" class="text-button" id="copy-result" data-text="复制结果" hidden>Copy result</button></div></div>
+            <div id="result-content" role="status" aria-live="polite"></div>
+          </section>
+        </div>
+
+        <aside class="support-column">
+          <section class="card examples-card"><div class="card-heading"><h2 data-text="试试这些">Try these</h2></div><p class="support-intro" data-text="点击示例填入各输入框">Click an example to fill the input fields.</p><div id="examples"></div></section>
+          <section class="card syntax-card"><div class="card-heading"><h2 data-text="输入小贴士">Input tips</h2><span class="syntax-symbol" aria-hidden="true">{ }</span></div><div id="syntax-tips"></div><button type="button" class="full-guide" id="help-syntax" data-text="查看输入指南">View input guide</button></section>
+          <section class="card history-card"><div class="card-heading"><h2><span data-text="最近计算">Recent calculations</span> <span class="history-count" id="history-count">0</span></h2><button type="button" class="text-button" id="clear-history" data-text="清空">Clear</button></div><div id="history-list"></div><p class="history-footer" data-text="历史仅保存在当前浏览器">History is saved in this browser.</p></section>
+        </aside>
+      </div>
+
+      <div id="date-panel" class="utility-panel" hidden>
+        <section class="card utility-controls" aria-labelledby="date-title">
+          <div class="card-heading"><h2 id="date-title"><span class="heading-square"></span><span data-text="日期设置">Date settings</span></h2></div>
+          <div class="field">
+            <label class="field-label" for="date-mode" data-text="日期运算">Operation</label>
+            <select id="date-mode"><option value="difference" data-text="日期差">Difference between dates</option><option value="offset" data-text="日期加减">Add or subtract dates</option></select>
+          </div>
+          <div id="date-difference-fields" class="utility-pair">
+            <div class="field"><label class="field-label" for="date-from" data-text="起始日期">From</label><input type="date" id="date-from" min="1601-01-01" max="9999-12-31"></div>
+            <div class="field"><label class="field-label" for="date-to" data-text="结束日期">To</label><input type="date" id="date-to" min="1601-01-01" max="9999-12-31"></div>
+          </div>
+          <div id="date-offset-fields" hidden>
+            <div class="utility-pair">
+              <div class="field"><label class="field-label" for="date-start" data-text="基准日期">Starting date</label><input type="date" id="date-start" min="1601-01-01" max="9999-12-31"></div>
+              <div class="field"><label class="field-label" for="date-direction" data-text="加减方式">Direction</label><select id="date-direction"><option value="add" data-text="加上">Add</option><option value="subtract" data-text="减去">Subtract</option></select></div>
+            </div>
+            <div class="date-amounts">
+              <div class="field"><label class="field-label" for="date-years" data-text="年数">Years</label><input type="number" id="date-years" min="0" step="1" value="0" inputmode="numeric"></div>
+              <div class="field"><label class="field-label" for="date-months" data-text="月数">Months</label><input type="number" id="date-months" min="0" step="1" value="0" inputmode="numeric"></div>
+              <div class="field"><label class="field-label" for="date-days" data-text="天数">Days</label><input type="number" id="date-days" min="0" step="1" value="0" inputmode="numeric"></div>
+            </div>
+          </div>
+          <p id="date-error" class="utility-error" aria-live="polite"></p>
+        </section>
+        <section class="card utility-result-card" aria-labelledby="date-result-label">
+          <div class="card-heading"><h2><span class="heading-square result-square"></span><span id="date-result-label">Days between</span></h2></div>
+          <div class="date-result-value" role="status"><output id="date-result" aria-live="off">—</output><p id="date-detail"></p></div>
+        </section>
+      </div>
+
+      <div id="converter-panel" class="utility-panel" hidden>
+        <section class="card utility-controls" aria-labelledby="converter-title">
+          <div class="card-heading"><h2 id="converter-title"><span class="heading-square"></span><span data-text="单位换算">Unit conversion</span></h2></div>
+          <div class="field">
+            <label class="field-label" for="converter-category" data-text="换算类别">Category</label><select id="converter-category"></select>
+          </div>
+          <div class="converter-pair">
+            <div class="converter-side">
+              <div class="field"><label class="field-label" for="converter-from" data-text="原单位">From unit</label><select id="converter-from"></select></div>
+              <div class="field converter-number"><label class="field-label" for="converter-value" data-text="输入数值">Value</label><input id="converter-value" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" aria-describedby="converter-error"></div>
+            </div>
+            <button id="converter-swap" class="converter-swap" type="button" data-aria="交换单位" data-title="交换单位" aria-label="Swap units" title="Swap units">⇄</button>
+            <div class="converter-side">
+              <div class="field"><label class="field-label" for="converter-to" data-text="目标单位">To unit</label><select id="converter-to"></select></div>
+              <div class="field converter-number"><span class="field-label" id="conversion-result-label" data-text="换算结果">Converted value</span><div class="conversion-value" role="status"><output id="converter-result" aria-labelledby="conversion-result-label" aria-live="off">—</output><span id="converter-result-unit"></span></div></div>
+            </div>
+          </div>
+          <p id="converter-error" class="utility-error" aria-live="polite"></p>
+          <p id="converter-note" class="field-hint"></p>
+        </section>
+        <section id="converter-comparison" class="card utility-result-card" aria-labelledby="comparison-title" hidden>
+          <div class="card-heading"><h2 id="comparison-title"><span class="heading-square result-square"></span><span data-text="约相当于">Approximately equivalent to</span></h2></div>
+          <dl id="converter-equivalents" class="converter-equivalents"></dl>
+        </section>
+      </div>
+
+      <div id="graph-panel" class="graph-workspace" hidden>
+        <section class="card graph-chart-card" aria-labelledby="graph-chart-title">
+          <header class="graph-chart-header">
+            <h2 id="graph-chart-title"><span class="heading-square"></span><span data-text="坐标平面">Coordinate plane</span></h2>
+            <div class="graph-tools" role="group" data-aria="图表视图工具" aria-label="Graph view tools">
+              <button type="button" id="graph-zoom-out" data-title="缩小" data-aria="缩小" title="Zoom out" aria-label="Zoom out">−</button>
+              <button type="button" id="graph-zoom-in" data-title="放大" data-aria="放大" title="Zoom in" aria-label="Zoom in">+</button>
+              <button type="button" id="graph-reset" data-title="重置视图" data-aria="重置视图" title="Reset view" aria-label="Reset view">⌂</button>
+              <button type="button" id="graph-export" class="graph-export" data-text="保存图片">Save image</button>
+            </div>
+          </header>
+          <div class="graph-stage">
+            <canvas id="graph-canvas" tabindex="0" aria-describedby="graph-coordinate graph-navigation-hint" aria-label="Interactive coordinate plane" data-aria="交互坐标平面"></canvas>
+            <canvas id="graph-cursor-layer" aria-hidden="true"></canvas>
+          </div>
+          <div class="graph-chart-footer">
+            <span id="graph-coordinate" class="mono" data-text="移动指针可查看坐标">Move the pointer to read coordinates</span>
+            <span id="graph-navigation-hint" data-text="拖动平移，可用滚轮或双指缩放">Drag to pan · Scroll or pinch to zoom</span>
+          </div>
+          <div class="graph-landmark-field" id="graph-landmark-field" hidden><label for="graph-landmarks" data-text="关键点">Key points</label><select id="graph-landmarks"></select></div>
+        </section>
+
+        <section class="card graph-editor" aria-labelledby="graph-expression-title">
+          <div class="card-heading"><h2 id="graph-expression-title"><span class="heading-square"></span><span data-text="表达式">Expressions</span></h2></div>
+          <div id="graph-rows"></div>
+          <div class="graph-editor-actions">
+            <button type="button" id="graph-add" class="graph-add" data-text="添加表达式">Add expression</button>
+            <button type="button" id="graph-examples" class="graph-add graph-library-open" data-text="示例库">Example library</button>
+            <button type="button" id="graph-open-saves" class="graph-add" data-text="保存与导入">Save &amp; import</button>
+            <button type="button" id="graph-restore" class="graph-add" data-text="撤销载入图表" hidden>Undo graph load</button>
+          </div>
+          <details class="graph-keyboard" id="graph-keyboard" open>
+            <summary data-text="数学键盘">Math keyboard</summary>
+            <div class="graph-keyboard-toolbar">
+              <label class="graph-key-category">
+                <span class="graph-visually-hidden" data-text="符号与函数类别">Symbol and function category</span>
+                <select id="graph-key-category"></select>
+              </label>
+              <div class="graph-edit-keys" id="graph-edit-keys"></div>
+            </div>
+            <div class="graph-key-grid" id="graph-key-grid"></div>
+            <button type="button" class="text-button graph-formula-button" data-formula-builder="graph" data-text="插入公式模板">Insert formula template</button>
+          </details>
+          <div id="graph-parameters" hidden>
+            <h3 data-text="参数滑块">Parameter sliders</h3>
+            <div id="graph-sliders"></div>
+          </div>
+          <details class="graph-settings" id="graph-settings">
+            <summary data-text="图表设置">Graph settings</summary>
+            <div class="graph-toggle-list">
+              <label><input id="graph-grid" type="checkbox" checked> <span data-text="网格">Grid</span></label>
+              <label><input id="graph-intersections" type="checkbox" checked> <span data-text="显示关键点">Show key points</span></label>
+              <label><input id="graph-trace" type="checkbox" checked> <span data-text="坐标追踪">Coordinate tracing</span></label>
+            </div>
+            <div class="field-grid graph-range">
+              <div class="field"><label for="graph-x-min" class="field-label" data-text="横轴下限">X minimum</label><input id="graph-x-min" type="text" maxlength="40"></div>
+              <div class="field"><label for="graph-x-max" class="field-label" data-text="横轴上限">X maximum</label><input id="graph-x-max" type="text" maxlength="40"></div>
+              <div class="field"><label for="graph-y-min" class="field-label" data-text="纵轴下限">Y minimum</label><input id="graph-y-min" type="text" maxlength="40"></div>
+              <div class="field"><label for="graph-y-max" class="field-label" data-text="纵轴上限">Y maximum</label><input id="graph-y-max" type="text" maxlength="40"></div>
+              <div class="field"><label for="graph-t-min" class="field-label" data-text="参数 t 下限">t minimum</label><input id="graph-t-min" type="text" value="0" maxlength="40"></div>
+              <div class="field"><label for="graph-t-max" class="field-label" data-text="参数 t 上限">t maximum</label><input id="graph-t-max" type="text" value="2*pi" maxlength="40"></div>
+              <div class="field"><label for="graph-theta-min" class="field-label" data-text="角度 θ 下限">θ minimum</label><input id="graph-theta-min" type="text" value="0" maxlength="40"></div>
+              <div class="field"><label for="graph-theta-max" class="field-label" data-text="角度 θ 上限">θ maximum</label><input id="graph-theta-max" type="text" value="2*pi" maxlength="40"></div>
+            </div>
+            <button type="button" id="graph-apply-range" class="graph-add" data-text="应用范围">Apply ranges</button>
+            <p id="graph-range-error" class="graph-row-error" role="status"></p>
+          </details>
+        </section>
+
+        <dialog id="graph-library" class="graph-library" aria-labelledby="graph-library-title">
+          <header class="graph-library-header">
+            <div class="card-heading"><h2 id="graph-library-title"><span class="heading-square"></span><span data-text="示例库">Example library</span></h2></div>
+            <button type="button" id="graph-close-library" class="graph-add" data-text="关闭">Close</button>
+          </header>
+          <div id="graph-example-groups" class="graph-example-groups" role="group" data-aria="示例类别" aria-label="Example categories"></div>
+          <div id="graph-example-grid" class="graph-example-grid"></div>
+        </dialog>
+
+        <dialog id="graph-saves" class="graph-library graph-saves" aria-labelledby="graph-saves-title">
+          <header class="graph-library-header">
+            <h2 id="graph-saves-title" data-text="保存与导入">Save &amp; import</h2>
+            <button type="button" id="graph-close-saves" class="graph-add" data-text="关闭">Close</button>
+          </header>
+          <div class="graph-saves-body">
+            <form id="graph-save-form" class="field graph-save-form">
+              <label for="graph-save-name" class="field-label" data-text="图表名称">Graph name</label>
+              <div><input id="graph-save-name" maxlength="60" required><button type="submit" class="graph-add" data-text="保存当前图表">Save current graph</button></div>
+            </form>
+            <div class="graph-save-actions">
+              <button type="button" id="graph-export-state" class="graph-add" data-text="导出图表文件">Export graph file</button>
+              <button type="button" id="graph-import-state" class="graph-add" data-text="导入图表文件">Import graph file</button>
+              <input id="graph-import-file" type="file" accept=".json,application/json" hidden>
+            </div>
+            <p id="graph-save-status" role="status" class="graph-save-status"></p>
+            <div id="graph-save-list" class="graph-save-list"></div>
+          </div>
+        </dialog>
+
+        <details class="card graph-table" id="graph-table">
+          <summary data-text="函数数值表">Function value table</summary>
+          <p id="graph-table-empty" data-text="添加关于 x 的函数以查看数值表。">Add a function of x to view its table.</p>
+          <div id="graph-table-fields">
+            <div class="graph-table-inputs">
+              <div class="field"><label for="graph-table-select" class="field-label" data-text="选择函数">Choose a function</label><select id="graph-table-select"></select></div>
+              <div class="field"><label for="graph-table-start" class="field-label" data-text="起始 x">Starting x</label><input type="number" id="graph-table-start" value="-3" step="any"></div>
+              <div class="field"><label for="graph-table-step" class="field-label" data-text="步长">Step</label><input type="number" id="graph-table-step" value="1" step="any"></div>
+            </div>
+            <p id="graph-table-error" class="graph-row-error" role="status"></p>
+            <button type="button" id="graph-table-export" class="graph-add graph-table-export" data-text="导出 CSV">Export CSV</button>
+            <table><thead><tr><th scope="col">x</th><th scope="col">y</th></tr></thead><tbody id="graph-table-body"></tbody></table>
+          </div>
+        </details>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="formula-builder" class="graph-library formula-builder" aria-labelledby="formula-builder-title">
+    <header class="graph-library-header">
+      <h2 id="formula-builder-title" data-text="插入公式模板">Insert formula template</h2>
+      <button id="formula-builder-close" type="button" class="graph-add" data-text="关闭">Close</button>
+    </header>
+    <form id="formula-builder-form" class="formula-builder-form">
+      <div class="field">
+        <label for="formula-kind" class="field-label" data-text="公式类型">Formula type</label>
+        <select id="formula-kind">
+          <option value="fraction" data-text="分式">Fraction</option>
+          <option value="root" data-text="平方根">Square root</option>
+          <option value="integral" data-text="定积分">Definite integral</option>
+        </select>
+      </div>
+      <div id="formula-builder-slots"></div>
+      <p id="formula-builder-error" class="graph-row-error" role="status"></p>
+      <button type="submit" class="primary-button" data-text="插入公式">Insert formula</button>
+    </form>
+  </dialog>
+
+  <dialog id="help-dialog" aria-labelledby="help-title">
+    <div class="dialog-header">
+      <div>
+        <h2 id="help-title" data-text="输入指南">Input guide</h2>
+        <label class="guide-filter" for="help-category"><span data-text="运算类别">Calculation type</span><select id="help-category"></select></label>
+      </div>
+      <button type="button" class="icon-button" id="close-help" aria-label="Close guide" data-aria="关闭指南">✕</button>
+    </div>
+    <div class="help-body" id="help-content"></div>
+  </dialog>
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>

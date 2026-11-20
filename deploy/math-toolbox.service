@@ -1,0 +1,25 @@
+[Unit]
+Description=Shuyan Math Toolbox
+After=network.target
+
+[Service]
+Type=simple
+User=mathbox
+Group=mathbox
+WorkingDirectory=/opt/math-toolbox
+Environment=MATH_TRUST_PROXY=1
+Environment=MATH_TIMEOUT=12
+Environment=MATH_WORKERS=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/math-toolbox/.venv/bin/python /opt/math-toolbox/app.py --host 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+MemoryMax=512M
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

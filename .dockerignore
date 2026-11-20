@@ -1,0 +1,9 @@
+*
+!app.py
+!engine.py
+!equation_solver.py
+!requirements.txt
+!static/
+!static/**
+static/**/__pycache__
+static/**/*.pyc

@@ -1,0 +1,38 @@
+{
+  "name": "caveqis",
+  "productName": "CAVEQIS",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CAVEQIS offline mathematical toolbox",
+  "main": "main.cjs",
+  "scripts": {
+    "build:win": "electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "xyz.caveqis.desktop",
+    "files": ["main.cjs"],
+    "extraResources": [
+      {"from": ".build/engine/caveqis-engine", "to": "engine"},
+      {"from": ".build/licenses", "to": "notices"},
+      {"from": "../static/caveqis.png", "to": "caveqis.png"}
+    ],
+    "win": {
+      "icon": ".build/caveqis.ico",
+      "signExecutable": false
+    },
+    "nsis": {
+      "artifactName": "CAVEQIS-Setup-${version}-win-${arch}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": ".build/caveqis.ico",
+      "uninstallerIcon": ".build/caveqis.ico"
+    }
+  }
+}

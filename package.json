@@ -1,0 +1,10 @@
+{
+  "name": "shuyan-math-toolbox-checks",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "31.0.1"
+  }
+}
