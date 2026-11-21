@@ -12,29 +12,31 @@ An offline mathematics toolbox for symbolic and numerical calculations, equation
 
 ## Downloads
 
-All three installers are available in the [CAVEQIS v1.1.0 release](https://github.com/fengyundn/caveqis/releases/tag/v1.1.0).
+Download an installer from the [CAVEQIS 1.2.0 release](https://github.com/fengyundn/caveqis/releases/tag/v1.2.0).
 
 | Platform | Installer |
 | --- | --- |
-| Windows 10 and 11 (x64) | [Download Windows installer](https://github.com/fengyundn/caveqis/releases/download/v1.1.0/CAVEQIS-Setup-1.1.0-win-x64.exe) |
-| Linux (x86-64) | [Download Linux `.deb`](https://github.com/fengyundn/caveqis/releases/download/v1.1.0/CAVEQIS-1.1.0-linux-amd64.deb) |
-| Android | [Download Android `.apk`](https://github.com/fengyundn/caveqis/releases/download/v1.1.0/CAVEQIS-1.1.0-android.apk) |
+| Windows 10 and 11 (x64) | [Download Windows installer](https://github.com/fengyundn/caveqis/releases/download/v1.2.0/CAVEQIS-Setup-1.2.0-win-x64.exe) |
+| Linux (amd64) | [Download Linux `.deb`](https://github.com/fengyundn/caveqis/releases/download/v1.2.0/CAVEQIS-1.2.0-linux-amd64.deb) |
+| Android 7 or later (arm64 or x86-64) | [Download Android `.apk`](https://github.com/fengyundn/caveqis/releases/download/v1.2.0/CAVEQIS-1.2.0-android.apk) |
+
+Verify your download with [SHA256SUMS.txt](https://github.com/fengyundn/caveqis/releases/download/v1.2.0/SHA256SUMS.txt). The [source archive](https://github.com/fengyundn/caveqis/releases/download/v1.2.0/CAVEQIS-1.2.0-source.zip) is also available.
 
 ## Overview
 
-- **Symbolic and numerical calculations.** Evaluate exact expressions, simplify or factor algebra, work with matrices and determinants, and compute derivatives, integrals, limits, and series.
-- **Equation solving.** Solve single-variable equations, systems of equations, and selected matrix, differential, and integral equations.
-- **Interactive graphing.** Plot functions, implicit relations, inequalities, parametric curves, polar curves, and statistical charts. Explore the examples, adjust parameters with sliders, and export plots as PNGs.
+- **Symbolic and numerical calculations.** Evaluate exact expressions, simplify or factor algebra, work with matrices and determinants, and compute derivatives, integrals, limits, and series. Choose 0–50 decimal places for approximations.
+- **Equation solving.** Solve single-variable equations, systems of equations, and selected matrix, differential, and integral equations. Enter equations and unknowns in separate fields.
+- **Interactive graphing.** Plot functions, implicit relations, inequalities, parametric curves, polar curves, and statistical charts. Click an intersection to see its coordinates, adjust parameters with sliders, and export plots as PNGs.
 - **Everyday utilities.** Convert units and calculate date differences. Switch between English and Simplified Chinese or choose a light or dark theme.
 
-The desktop apps open in their own windows. The 1.2.0 mobile interface uses the system keyboard alongside CAVEQIS's math keys. A browser edition can also run locally or on a server. CAVEQIS uses SymPy for symbolic computation and KaTeX for formula rendering.
+On desktop, closing the window sends CAVEQIS to the background. On Android, the system Back action does the same. Choose **Settings → When closing → Quit** to exit directly. Android uses the system keyboard alongside CAVEQIS's math keys.
 
-Version 1.2.0 includes a [local MCP interface](docs/mcp.md) for Windows, Linux, and Android. The downloads above are the published 1.1.0 installers.
+Connect an AI client to the local calculation engine with the [MCP configuration guide](docs/mcp.md). A browser edition can run locally or on a server. CAVEQIS uses SymPy for symbolic computation and KaTeX for formula rendering.
 
 ## Installing
 
 - **Windows.** Run the `.exe` and open **CAVEQIS** from the Start menu. The installer is unsigned, so Windows may show an unknown-publisher prompt.
-- **Linux.** On Debian 12 x86-64, run `sudo apt install ./CAVEQIS-1.1.0-linux-amd64.deb` from the download directory. Then open **CAVEQIS** from your application menu.
+- **Linux.** On Debian 12 x86-64, run `sudo apt install ./CAVEQIS-1.2.0-linux-amd64.deb` from the download directory. Then open **CAVEQIS** from your application menu.
 - **Android.** Open the `.apk` on your device to install it. If Android prompts you, allow app installation from the browser or file manager you used to open the file.
 
 ## Run from source
@@ -51,12 +53,13 @@ On Linux, use `.venv/bin/python` in the last two commands. Open the local app at
 
 ### Docker
 
+Run the published Linux amd64 browser image. [Docker Hub](https://hub.docker.com/r/fengyundn/caveqis/tags)
+
 ```sh
-docker build -t caveqis .
-docker run --rm -p 127.0.0.1:8765:8765 caveqis
+docker run --rm -p 127.0.0.1:8765:8765 fengyundn/caveqis:1.2.0
 ```
 
-Open `http://127.0.0.1:8765/` in your browser. The [deployment templates](deploy/) cover Nginx reverse proxying and a systemd service.
+To build from this checkout, run `docker build -t caveqis .` and use `caveqis` as the image name. Open `http://127.0.0.1:8765/` in your browser. The [deployment templates](deploy/) cover Nginx reverse proxying and a systemd service.
 
 ### Build the Windows installer
 
