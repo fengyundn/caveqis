@@ -1,12 +1,14 @@
 {
   "name": "caveqis",
   "productName": "CAVEQIS",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "CAVEQIS offline mathematical toolbox",
+  "homepage": "https://github.com/fengyundn/caveqis",
   "main": "main.cjs",
   "scripts": {
-    "build:win": "electron-builder --win nsis --x64 --publish never"
+    "build:win": "electron-builder --win nsis --x64 --publish never",
+    "build:linux": "electron-builder --linux deb --x64 --publish never"
   },
   "devDependencies": {
     "electron": "45.4.1",
@@ -23,6 +25,12 @@
     "win": {
       "icon": ".build/caveqis.ico",
       "signExecutable": false
+    },
+    "linux": {
+      "icon": ".build/icon.png",
+      "category": "Education",
+      "maintainer": "CAVEQIS Project <287415160+fengyundn@users.noreply.github.com>",
+      "artifactName": "CAVEQIS-${version}-linux-${arch}.${ext}"
     },
     "nsis": {
       "artifactName": "CAVEQIS-Setup-${version}-win-${arch}.${ext}",

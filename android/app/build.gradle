@@ -1,0 +1,97 @@
+plugins {
+    id 'com.android.application' version '8.9.1'
+    id 'com.chaquo.python' version '17.2.0'
+}
+
+def sharedRoot = rootProject.projectDir.parentFile
+def sharedPython = layout.buildDirectory.dir('generated/caveqis/python')
+def sharedAssets = layout.buildDirectory.dir('generated/caveqis/assets')
+
+android {
+    namespace 'xyz.caveqis.mobile'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'xyz.caveqis.mobile'
+        minSdk 24
+        targetSdk 35
+        versionCode 110
+        versionName '1.1.0'
+        ndk { abiFilters 'arm64-v8a', 'x86_64' }
+    }
+
+    sourceSets.main.assets.srcDir(sharedAssets)
+    sourceSets.main.res.srcDir(layout.buildDirectory.dir('generated/caveqis/res'))
+    buildFeatures { buildConfig true }
+
+    signingConfigs {
+        if (System.getenv('CAVEQIS_ANDROID_KEYSTORE')) {
+            release {
+                storeFile file(System.getenv('CAVEQIS_ANDROID_KEYSTORE'))
+                storePassword System.getenv('CAVEQIS_ANDROID_KEYSTORE_PASSWORD')
+                keyAlias 'caveqis'
+                keyPassword System.getenv('CAVEQIS_ANDROID_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (signingConfigs.findByName('release')) signingConfig signingConfigs.release
+        }
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version '3.12'
+        if (System.getenv('CAVEQIS_BUILD_PYTHON')) {
+            buildPython System.getenv('CAVEQIS_BUILD_PYTHON')
+        }
+        pip {
+            install 'sympy==1.14.0'
+            install 'mpmath==1.3.0'
+        }
+        extractPackages 'sympy', 'mpmath'
+    }
+    sourceSets {
+        getByName('main') { srcDir sharedPython }
+    }
+}
+
+tasks.register('syncCalculator', Sync) {
+    from(sharedRoot) {
+        include 'calculation.py', 'engine.py', 'equation_solver.py'
+    }
+    into sharedPython
+}
+
+tasks.register('syncBundledWeb', Sync) {
+    filteringCharset = 'UTF-8'
+    from(new File(sharedRoot, 'static')) {
+        exclude 'index.html'
+        into 'static'
+    }
+    from(new File(sharedRoot, 'static/index.html')) {
+        filter { line ->
+            if (line.contains('src="static/app.js"')) {
+                return '  <link rel="stylesheet" href="static/android.css">\n' +
+                       '  <script defer src="static/android.js"></script>\n' + line
+            }
+            return line
+        }
+    }
+    from('src/main/web') { into 'static' }
+    into sharedAssets
+}
+
+tasks.register('syncAppIcon', Sync) {
+    from(new File(sharedRoot, 'static/caveqis.png')) { into 'drawable-nodpi' }
+    into layout.buildDirectory.dir('generated/caveqis/res')
+}
+
+tasks.named('preBuild') {
+    dependsOn 'syncCalculator', 'syncBundledWeb', 'syncAppIcon'
+}
+tasks.matching { it.name.endsWith('PythonSources') }.configureEach {
+    dependsOn 'syncCalculator'
+}

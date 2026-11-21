@@ -1,0 +1,82 @@
+body {
+  padding-bottom: 4rem;
+}
+
+body.android-keypad-open {
+  padding-bottom: 19rem;
+}
+
+.android-keypad-toggle {
+  position: fixed;
+  right: 14px;
+  bottom: 12px;
+  z-index: 30;
+  border-radius: 999px;
+  padding: 10px 17px;
+  min-height: 46px;
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 3px 12px #15132c30;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.android-keypad {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 35;
+  width: min(100%, 500px);
+  margin-inline: auto;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px 16px 0 0;
+  background: var(--card);
+  box-shadow: 0 -5px 24px #15132c30;
+}
+
+.android-keypad-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 5px 6px;
+  font-size: 15px;
+}
+
+.android-keypad-header button {
+  border-radius: 8px;
+  min-height: 40px;
+  padding-inline: 12px;
+  color: var(--primary);
+  background: var(--tint);
+  font-weight: 600;
+}
+
+.android-keypad-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  touch-action: manipulation;
+}
+
+.android-keypad-grid button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 44px;
+  background: var(--input);
+  color: var(--text);
+  font-size: 20px;
+}
+
+.android-keypad-grid button:active {
+  color: var(--primary);
+  background: var(--tint);
+}
+
+@media (max-height: 540px) and (orientation: landscape) {
+  .android-keypad {
+    left: auto;
+    width: min(42%, 345px);
+    padding: 6px 8px 8px;
+  }
+}

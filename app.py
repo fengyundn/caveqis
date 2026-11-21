@@ -10,6 +10,7 @@ import threading
 import time
 
 from flask import Flask, jsonify, request, send_from_directory
+from calculation import compute_result
 
 ROOT = Path(__file__).resolve().parent
 app = Flask(__name__, static_folder="static", static_url_path="/static")
@@ -37,25 +38,7 @@ def calculation_worker(connection, data):
             import resource
             resource.setrlimit(resource.RLIMIT_AS, (384 * 1024**2, 384 * 1024**2))
             resource.setrlimit(resource.RLIMIT_CPU, (int(TIMEOUT) + 1, int(TIMEOUT) + 2))
-        from engine import compute, InputError
-        try:
-            answer = {"ok": True, **compute(data)}
-        except InputError as error:
-            answer = {"ok": False, "error": str(error)}
-        except (ValueError, TypeError, NotImplementedError, ZeroDivisionError) as error:
-            message = str(error).lower()
-            if "invert" in message or "det == 0" in message:
-                hint = "矩阵不可逆，行列式为零。"
-            elif "nonlinear" in message:
-                hint = "检测到非线性项，请改用符号求根或非线性方程组模式。"
-            elif "could not find root" in message:
-                hint = "当前初值未能找到满足精度的根，请更换初值。"
-            else:
-                hint = "当前表达式不满足此操作的条件，或暂时无法求解；请检查尺寸、参数、定义域或更换计算方式。"
-            answer = {"ok": False, "error": hint}
-        except Exception:
-            answer = {"ok": False, "error": "此问题暂时无法完成计算，请缩小规模或改写表达式。"}
-        connection.send(answer)
+        connection.send(compute_result(data))
     except (MemoryError, OSError):
         pass
     finally:

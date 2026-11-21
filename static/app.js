@@ -486,6 +486,9 @@ function renderHistory() {
 function renderLoading() {
   $("#result-content").innerHTML = `<div class="loading-result"><div class="loader"></div>${tr("正在计算")}</div>`;
 }
+function platformRequest(url, options) {
+  return window.CaveqisPlatform?.request(url, options) ?? fetch(url, options);
+}
 async function calculate(event) {
   event?.preventDefault();
   if (busy) return;
@@ -504,7 +507,7 @@ async function calculate(event) {
   const controller = new AbortController();
   const timer = setTimeout(()=>controller.abort(),35000);
   try {
-    const response = await fetch("api/calculate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data),signal:controller.signal});
+    const response = await platformRequest("api/calculate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data),signal:controller.signal});
     let result;
     try { result = await response.json(); } catch { throw new Error("计算服务响应异常，请确认服务已启动。"); }
     if (requestRevision === revision) renderResult(result);
@@ -641,7 +644,11 @@ $("#clear-history").addEventListener("click",()=>{history=[];storage.set("shuyan
 $("#copy-result").addEventListener("click",async()=>{
   if (!latestResult?.ok) return;
   const text=latestResult.items.map(item=>`${resultText(item.label)}: ${item.text}${item.approx ? "\n"+tr("近似值")+": "+item.approx : ""}`).join("\n\n") + (latestResult.notes?.length ? "\n\n"+latestResult.notes.map(note=>resultText(note,"note")).join("\n") : "");
-  try { await navigator.clipboard.writeText(text); toast("计算结果已复制"); }
+  try {
+    if (window.CaveqisPlatform) await window.CaveqisPlatform.copyText(text);
+    else await navigator.clipboard.writeText(text);
+    toast("计算结果已复制");
+  }
   catch { const area=document.createElement("textarea");area.value=text;document.body.append(area);area.select();const copied=document.execCommand("copy");area.remove();toast(copied ? "计算结果已复制" : "浏览器限制了复制，请手动选择结果"); }
 });
 $("#send-result-graph").addEventListener("click",()=>sendResultToGraph(latestResult));
@@ -697,7 +704,7 @@ navigate(Object.hasOwn(utilityViews,initialRoute) ? initialRoute : category,fals
 renderHistory();
 renderGuide();
 renderServiceState();
-fetch("api/health").then(r=>r.json()).then(data=>{
+platformRequest("api/health").then(r=>r.json()).then(data=>{
   if(!data.ok)throw new Error("unavailable");
   serviceState="ready";
   renderServiceState();

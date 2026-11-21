@@ -661,6 +661,12 @@ graphElement("graph-zoom-in").addEventListener("click",()=>zoomGraph(0.8));
 graphElement("graph-zoom-out").addEventListener("click",()=>zoomGraph(1.25));
 graphElement("graph-reset").addEventListener("click",()=>changeGraphView(graphViewDefaults));
 graphElement("graph-export").addEventListener("click",()=>{
+  if (window.CaveqisPlatform) {
+    graphCanvas.toBlob(blob => {
+      if (blob) window.CaveqisPlatform.saveFile("caveqis-graph.png", blob);
+    }, "image/png");
+    return;
+  }
   const link=document.createElement("a");
   link.href=graphCanvas.toDataURL("image/png");
   link.download="math-studio-graph.png";
@@ -701,7 +707,12 @@ if (typeof ResizeObserver==="function") new ResizeObserver(refreshGraphLayout).o
 window.addEventListener("resize",refreshGraphLayout);
 
 function graphDownload(filename,contents,type) {
-  const url = URL.createObjectURL(new Blob([contents],{type}));
+  const blob = new Blob([contents],{type});
+  if (window.CaveqisPlatform) {
+    window.CaveqisPlatform.saveFile(filename, blob);
+    return;
+  }
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;

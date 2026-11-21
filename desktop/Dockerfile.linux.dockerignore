@@ -1,0 +1,15 @@
+*
+!app.py
+!engine.py
+!equation_solver.py
+!requirements.txt
+!calculation.py
+!static/
+!static/**
+!desktop/
+!desktop/**
+desktop/.build/
+desktop/dist/
+desktop/node_modules/
+**/__pycache__/
+**/*.pyc
