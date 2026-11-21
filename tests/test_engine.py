@@ -68,6 +68,19 @@ class ComputationTests(unittest.TestCase):
                 answer = self.run_math("equations", "equation_numeric", expression="cos(x)=x\nguess: 1", precision=digits)
                 self.assertEqual(answer["items"][0]["text"], root)
 
+    def test_decimal_places_preserve_exact_results_and_pad_numeric_output(self):
+        for places, expected in [(0, "0"), (4, "0.1250"), (50, "0.125" + "0"*47)]:
+            with self.subTest(places=places):
+                item = self.run_math("calculate", "evaluate", expression="1/8", decimalPlaces=places)["items"][0]
+                self.assertEqual(item["text"], "1/8")
+                self.assertEqual(item["approx"], expected)
+        numeric = self.run_math("equations", "equation_numeric", expression="sqrt(x)=0.5",
+                                variables="x", guesses="1/4", decimalPlaces=4)
+        self.assertEqual(numeric["items"][0]["text"], "0.2500")
+        for invalid in ("2.5", -1, 51):
+            with self.assertRaisesRegex(InputError, "小数位数"):
+                self.run_math("calculate", "evaluate", expression="pi", decimalPlaces=invalid)
+
     def test_matrix_operations(self):
         data={"matrixA":"1,2\n3,4","matrixB":"2,0\n1,2"}
         for op in ["add","subtract","multiply","divide","hadamard","scale","power","det","inverse","transpose","adjoint","rank","trace","rref","nullspace","eigen","charpoly","lu"]:

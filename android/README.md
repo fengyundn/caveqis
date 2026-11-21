@@ -4,7 +4,7 @@ The Android app bundles the shared web interface, Python, and SymPy. The install
 
 ## Build
 
-Use JDK 17, Gradle 8.11.1, Android SDK Platform 35, Build Tools 35, and Python 3.12. Point `ANDROID_HOME` at the SDK and `CAVEQIS_BUILD_PYTHON` at the Python executable.
+Use JDK 17, Gradle 8.11.1, Android SDK Platform 35, Build Tools 35, and Python 3.14. Point `ANDROID_HOME` at the SDK and `CAVEQIS_BUILD_PYTHON` at the Python executable.
 
 ```sh
 gradle -p android :app:assembleDebug

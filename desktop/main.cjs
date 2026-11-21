@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, session } = require("electron");
+const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, nativeTheme, session } = require("electron");
 const { spawn } = require("node:child_process");
 const { randomBytes } = require("node:crypto");
 const { mkdtempSync, writeFileSync } = require("node:fs");
@@ -12,9 +12,13 @@ const port = smokeReport ? 18766 : 18765;
 const origin = `http://127.0.0.1:${port}`;
 const token = randomBytes(32).toString("hex");
 const resources = process.resourcesPath;
+const iconPath = path.join(resources, "caveqis.png");
 let window;
 let engine;
+let tray;
 let closing = false;
+let closeBehavior = "background";
+let windowLanguage = "en";
 
 if (smokeReport) {
   app.setPath("userData", mkdtempSync(path.join(tmpdir(), "caveqis-smoke-")));
@@ -77,6 +81,37 @@ function markClosing() {
   closing = true;
 }
 
+function restoreWindow() {
+  if (!window) return;
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+}
+
+function updateTrayMenu() {
+  const chinese = windowLanguage === "zh";
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: chinese ? "打开 CAVEQIS" : "Open CAVEQIS", click: restoreWindow },
+    { label: chinese ? "退出 CAVEQIS" : "Quit CAVEQIS", click: () => app.quit() },
+  ]));
+}
+
+function backgroundWindow() {
+  if (!tray) {
+    try {
+      tray = new Tray(nativeImage.createFromPath(iconPath).resize({ width: 32, height: 32 }));
+      tray.setToolTip("CAVEQIS");
+      tray.on("click", restoreWindow);
+      updateTrayMenu();
+    } catch {
+      tray?.destroy();
+      tray = null;
+    }
+  }
+  if (process.platform === "win32" && tray) window.hide();
+  else window.minimize();
+}
+
 async function openWindow() {
   await startEngine();
   const browserSession = session.defaultSession;
@@ -101,18 +136,30 @@ async function openWindow() {
     minWidth: 440,
     minHeight: 580,
     show: false,
-    icon: path.join(resources, "caveqis.png"),
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#121622" : "#f4f6fc",
+    icon: iconPath,
+    webPreferences: {
+      contextIsolation: true, nodeIntegration: false, sandbox: true,
+      preload: path.join(__dirname, "preload.cjs"),
+    },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, url) => {
     if (new URL(url).origin !== origin) event.preventDefault();
   });
-  window.once("close", markClosing);
+  window.on("close", event => {
+    if (closing || closeBehavior === "quit") {
+      markClosing();
+      return;
+    }
+    event.preventDefault();
+    backgroundWindow();
+  });
   window.once("closed", () => { window = null; });
   await window.loadURL(origin);
   if (!smokeReport) {
     window.show();
+    await window.webContents.executeJavaScript("window.dispatchEvent(new Event('caveqis-window-shown'))");
   } else {
     const result = await window.webContents.executeJavaScript(`(async () => {
       const response = await fetch("/api/calculate", {
@@ -127,24 +174,43 @@ async function openWindow() {
       document.querySelector('[data-graph-example="sliders"]').click();
       const graphLoaded = !document.querySelector("#graph-panel").hidden
         && !document.querySelector("#graph-parameters").hidden;
+      const closeSettingLoaded = !document.querySelector("#close-behavior-row").hidden
+        && document.querySelector("#close-behavior").value === "background";
       const ok = document.title.includes("CAVEQIS") && icon.ok
-        && result.ok && result.items[0].text === "11/15" && graphLoaded;
-      return { ok, title: document.title, icon: icon.status, calculation: result, graphLoaded };
+        && result.ok && result.items[0].text === "11/15" && graphLoaded && closeSettingLoaded;
+      return { ok, title: document.title, icon: icon.status, calculation: result, graphLoaded, closeSettingLoaded };
     })()`);
+    restoreWindow();
+    window.close();
+    result.keptRunningOnClose = Boolean(window);
+    if (result.keptRunningOnClose) {
+      restoreWindow();
+      await window.webContents.executeJavaScript('window.CaveqisDesktop?.setWindowOptions("quit","en")');
+    }
+    result.ok = result.ok && result.keptRunningOnClose && closeBehavior === "quit";
     result.profile = app.getPath("userData");
     writeFileSync(smokeReport, JSON.stringify(result, null, 2));
-    markClosing();
-    app.exit(result.ok ? 0 : 1);
+    if (result.ok) window.close();
+    else app.exit(1);
   }
 }
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
-    if (!window) return;
-    if (window.isMinimized()) window.restore();
-    window.focus();
+  app.on("second-instance", restoreWindow);
+  ipcMain.handle("caveqis:window-options", (event, behavior, language) => {
+    if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) return;
+    if (!["background", "quit"].includes(behavior) || !["en", "zh"].includes(language)) return;
+    closeBehavior = behavior;
+    windowLanguage = language;
+    if (!tray) return;
+    if (closeBehavior === "quit") {
+      tray.destroy();
+      tray = null;
+    } else {
+      updateTrayMenu();
+    }
   });
   app.on("window-all-closed", () => app.quit());
   app.on("before-quit", markClosing);

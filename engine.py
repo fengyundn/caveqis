@@ -420,7 +420,38 @@ def evaluate_to_digits(value, precision):
                                      lambda part: s.Float(str(+Decimal(str(part))), precision))
 
 
-def result_item(label, value, precision=12, numeric=True, tex=None):
+def fixed_decimal(value, places):
+    estimate = Decimal(str(value.evalf(15)))
+    if not estimate.is_finite() or estimate.adjusted() > 1000:
+        raise ValueError("Not a finite decimal of manageable size")
+    with localcontext() as context:
+        context.prec = max(24, estimate.adjusted() + places + 13)
+        if isinstance(value, s.Rational):
+            decimal = Decimal(int(value.p)) / Decimal(int(value.q))
+        else:
+            decimal = Decimal(str(value.evalf(context.prec)))
+        decimal = decimal.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_EVEN)
+    return decimal.copy_abs() if decimal.is_zero() else decimal
+
+
+def decimal_result(value, places):
+    if isinstance(value, s.MatrixBase):
+        rows = [[decimal_result(value[r, c], places) for c in range(value.cols)] for r in range(value.rows)]
+        text = "\n".join(", ".join(cell[0] for cell in row) for row in rows)
+        latex = r"\begin{bmatrix}" + r" \\ ".join(" & ".join(cell[1] for cell in row) for row in rows) + r"\end{bmatrix}"
+        return text, latex
+    if not isinstance(value, s.Expr) or not value.is_number or value.is_finite is not True:
+        raise ValueError("Not a finite numeric result")
+    real, imaginary = (fixed_decimal(part, places) for part in value.as_real_imag())
+    if not imaginary:
+        text = format(real, "f")
+        return text, text
+    prefix = f"{real:f} {'-' if imaginary < 0 else '+'} " if real else "-" if imaginary < 0 else ""
+    magnitude = format(imaginary.copy_abs(), "f")
+    return prefix + magnitude + "*I", prefix + magnitude + r"\,i"
+
+
+def result_item(label, value, precision=12, numeric=True, tex=None, decimal_places=None, approximate_primary=False):
     item = {"label": label, "text": s.sstr(value), "latex": tex if tex is not None else s.latex(value)}
     if isinstance(value, s.MatrixBase):
         item["matrix"] = [[s.sstr(value[r,c]) for c in range(value.cols)] for r in range(value.rows)]
@@ -428,7 +459,17 @@ def result_item(label, value, precision=12, numeric=True, tex=None):
     if len(item["text"]) + len(item["latex"]) > 45000:
         raise InputError("结果过长，请减小问题规模。")
     integer_only = bool(getattr(value, "is_Integer", False)) or (isinstance(value, s.MatrixBase) and all(v.is_Integer for v in value))
-    if numeric and not integer_only and hasattr(value, "evalf") and not getattr(value, "free_symbols", {1}):
+    if decimal_places is not None and (approximate_primary or numeric and not integer_only):
+        try:
+            text, latex = decimal_result(value, decimal_places)
+            if len(text) + len(latex) <= 45000:
+                if approximate_primary:
+                    item.update(text=text, latex=latex)
+                else:
+                    item.update(approx=text, approx_latex=latex)
+        except (ArithmeticError, TypeError, ValueError, NotImplementedError):
+            pass
+    elif decimal_places is None and numeric and not integer_only and hasattr(value, "evalf") and not getattr(value, "free_symbols", {1}):
         try:
             approx = evaluate_to_digits(value, precision)
             if approx != value and not approx.has(s.Integral, s.Derivative):
@@ -525,13 +566,16 @@ def compute(data):
     if not isinstance(data, dict):
         raise InputError("请求格式须为 JSON 对象。")
     math_fields = {"expression", "matrixA", "matrixB", "variables", "substitutions", "equations",
-                   "bounds", "guesses", "lower", "upper", "scalar", "power", "row", "column", "order", "point", "precision"}
+                   "bounds", "guesses", "lower", "upper", "scalar", "power", "row", "column", "order", "point", "precision", "decimalPlaces"}
     data = {key: normalize_math_text(value) if key in math_fields else value for key, value in data.items()}
     category = data.get("category", "calculate")
     op = data.get("operation", "evaluate")
     if category in ("calculate","integral","derivative","analysis","equations") and op.startswith("equation_"):
         from equation_solver import read_document
         rows,settings=read_document(data.get("expression",""),InputError)
+        for name in ("variables", "guesses"):
+            if data.get(name):
+                settings.pop(name, None)
         data.update(settings)
         category="equations"
         op=op.removeprefix("equation_")
@@ -568,6 +612,8 @@ def compute(data):
         op="formula"
     precision = bounded_int(data.get("precision", 12), 2, 50, "有效数字")
     data["precision"] = precision
+    decimal_places = bounded_int(data["decimalPlaces"], 0, 50, "小数位数") if "decimalPlaces" in data else None
+    data["decimalPlaces"] = decimal_places
     calculus_input = CALCULUS_INPUT.search(data.get("expression", data.get("equations", "")))
     p = Parser(data.get("assumption", "complex"), category == "calculate" and data.get("angle") == "deg" and not calculus_input, category=="equations")
     items, notes, graph = [], [], []
@@ -577,7 +623,7 @@ def compute(data):
             graph.append(form)
 
     def add(label, value, **kwargs):
-        items.append(result_item(label, value, precision, **kwargs))
+        items.append(result_item(label, value, precision, decimal_places=decimal_places, **kwargs))
         if category != "equations":
             add_graph(graph_scalar(value))
         elif isinstance(value, s.Equality) and isinstance(value.lhs, AppliedUndef):

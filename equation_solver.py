@@ -61,7 +61,12 @@ def bare_derivatives(expression):
     return expression.atoms(s.Derivative)-substituted
 
 
-def ordinary_differential(pairs,add,notes,error):
+def check_unknown_function(function, unknown, error):
+    if unknown and "".join(unknown.split()) not in (function.func.__name__, str(function)):
+        raise error("请填写方程中的未知函数，例如 y(x) 或 y。")
+
+
+def ordinary_differential(pairs,add,notes,error,unknown=None):
     ode_rows=[i for i,(left,right) in enumerate(pairs) if bare_derivatives(left-right)]
     if len(ode_rows)!=1:
         raise error("目前支持一个未知函数的常微分方程，可附初始条件；联立微分方程和偏微分方程暂不支持。")
@@ -71,6 +76,7 @@ def ordinary_differential(pairs,add,notes,error):
     if len(functions)!=1:
         raise error("常微分方程中请只使用一个未知函数，例如 y(x)。")
     function=next(iter(functions))
+    check_unknown_function(function, unknown, error)
     if len(function.args)!=1 or not isinstance(function.args[0],s.Symbol):
         raise error("未知函数请写成 y(x) 这样的单变量形式。")
     variable=function.args[0]
@@ -102,7 +108,7 @@ def ordinary_differential(pairs,add,notes,error):
     notes.append("当前求解对象是单函数常微分方程；返回隐式解或特殊函数也是可能的。")
 
 
-def volterra_equation(pairs,add,notes,error):
+def volterra_equation(pairs,add,notes,error,unknown=None):
     if len(pairs)!=1:
         raise error("积分方程模式目前接受一个 Volterra 型积分方程，初值由积分下限自动导出。")
     expression=pairs[0][0]-pairs[0][1]
@@ -112,6 +118,7 @@ def volterra_equation(pairs,add,notes,error):
     if len(functions)!=1:
         raise error("积分方程请写成 y(x)=1+integrate(y(t),t,0,x) 这样的单函数变上限形式。")
     function=next(iter(functions))
+    check_unknown_function(function, unknown, error)
     if len(function.args)!=1 or not isinstance(function.args[0],s.Symbol):
         raise error("积分方程的未知函数请写成 y(x)。")
     variable=function.args[0]
@@ -256,9 +263,9 @@ def solve_equations(data,parser,add,notes,error,add_graph):
     if functional_integral:
         if mode not in ("auto","integral","ode"):
             raise error("这是未知函数的积分方程，请选择方程自动求解或积分方程模式。")
-        return volterra_equation(pairs,add,notes,error)
+        return volterra_equation(pairs,add,notes,error,data.get("variables"))
     if any(bare_derivatives(expr) for expr in residuals) or mode=="ode":
-        return ordinary_differential(pairs,add,notes,error)
+        return ordinary_differential(pairs,add,notes,error,data.get("variables"))
     if any(expr.has(AppliedUndef,s.Derivative,s.Limit) for expr in residuals):
         raise error("仍含未知函数或未求出的极限；函数方程需要更多条件，不能当成普通代数方程直接求根。")
     if any(expr.has(s.Integral) for expr in residuals) and mode=="numeric":
@@ -276,7 +283,7 @@ def solve_equations(data,parser,add,notes,error,add_graph):
         add("等式判断",s.true if true else s.false,numeric=False)
         notes.append("等式恒成立，没有待求未知数。" if true else "等式不成立，没有待求未知数。")
         return
-    if data.get("infer_variables"):
+    if data.get("infer_variables") and not data.get("variables"):
         notes.append("所求未知数："+", ".join(map(str,variables))+"。需要区分参数时，可另起一行写 vars: x。")
     from engine import graph_equation
     for left,right in pairs:
@@ -318,7 +325,7 @@ def solve_equations(data,parser,add,notes,error,add_graph):
         notes.append("非线性方程组按复数域求解；超越方程可能返回条件或参数解。")
     elif mode=="numeric":
         from engine import evaluate_to_digits, split_cells
-        guesses=split_cells(data.get("guesses",",".join("1" for _ in variables)))
+        guesses=split_cells(data.get("guesses") or ",".join("1" for _ in variables))
         if len(guesses)!=len(variables):
             raise error("初值数量须与未知数数量一致；可另起一行填写 guess: 1,1。")
         values=[parser.parse(guess) for guess in guesses]
@@ -327,10 +334,12 @@ def solve_equations(data,parser,add,notes,error,add_graph):
         if set().union(*(expr.free_symbols for expr in residuals))-set(variables):
             raise error("数值求根前请将系数参数替换为具体数值。")
         precision = int(data.get("precision", 12))
-        answer=s.nsolve(residuals,variables,values,prec=max(16, precision + 8),verify=True)
+        decimal_places = data.get("decimalPlaces")
+        answer=s.nsolve(residuals,variables,values,prec=max(16, precision + 8, (decimal_places or 0) + 18),verify=True)
         for variable,value in zip(variables,answer):
-            rounded = evaluate_to_digits(value, precision)
-            add(str(variable),rounded,numeric=False,tex=s.latex(rounded, full_prec=True))
+            if decimal_places is None:
+                value = evaluate_to_digits(value, precision)
+            add(str(variable),value,numeric=False,tex=s.latex(value, full_prec=True),approximate_primary=True)
         notes.append("数值求根只返回初值附近的一组近似解，不代表全部解。")
     else:
         raise error("未知的方程求解操作。")

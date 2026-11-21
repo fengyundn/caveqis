@@ -5,17 +5,27 @@ const path = require("node:path");
 const {JSDOM} = require("jsdom");
 const root=path.resolve(__dirname,"..");
 
-function workspace({history=[],hash="",graph}={}) {
+function workspace({history=[],hash="",graph,android=false,desktop=false,userAgent}={}) {
   const dom=new JSDOM(fs.readFileSync(path.join(root,"static/index.html"),"utf8"),{url:"http://127.0.0.1:8765/"+hash,runScripts:"outside-only",pretendToBeVisual:true});
-  const {window}=dom, requests=[];
-  window.matchMedia=()=>({matches:false});
+  const {window}=dom, requests=[], windowOptions=[];
+  if (desktop) window.CaveqisDesktop = {setWindowOptions:async (...options)=>windowOptions.push(options)};
+  if (userAgent) Object.defineProperty(window.navigator,"userAgent",{value:userAgent});
+  const systemTheme = new window.EventTarget();
+  systemTheme.matches = false;
+  window.matchMedia=query=>query==="(prefers-color-scheme: dark)" ? systemTheme : {matches:false};
   window.fetch=async(url,options)=>{
     if (options) requests.push(JSON.parse(options.body));
     return {json:async()=>options ? {ok:true,items:[{label:"result",text:"1",latex:"1"}],notes:[],...(graph ? {graph} : {})} : {ok:true,timeout:12}};
   };
   window.localStorage.setItem("shuyan-history-v1",JSON.stringify(history));
   window.eval(fs.readFileSync(path.join(root,"static/math-input.js"),"utf8"));
-  window.eval(["locale.js","examples.js","guide.js","units.js","utility-tools.js","graph-math.js","graph-canvas.js","graph-state.js","graph-library.js","graph-tool.js","formula-builder.js","app.js"].map(script => fs.readFileSync(path.join(root,"static",script),"utf8")).join("\n"));
+  const programs = ["locale.js","examples.js","guide.js","units.js","utility-tools.js","graph-math.js","graph-canvas.js","graph-state.js","graph-library.js","graph-tool.js","formula-builder.js"].map(script => fs.readFileSync(path.join(root,"static",script),"utf8"));
+  if (android) {
+    window.CaveqisNative = {isSystemDark:()=>systemTheme.matches};
+    programs.push(fs.readFileSync(path.join(root,"android/app/src/main/web/android.js"),"utf8"));
+  }
+  programs.push(fs.readFileSync(path.join(root,"static/app.js"),"utf8"));
+  window.eval(programs.join("\n"));
   const $=selector=>window.document.querySelector(selector);
   const change=value=>{const select=$("#operation");select.value=value;select.dispatchEvent(new window.Event("change",{bubbles:true}));};
   const chooseType=value=>{
@@ -23,8 +33,31 @@ function workspace({history=[],hash="",graph}={}) {
     const select=$("#calculation-type"); select.value=value; select.dispatchEvent(new window.Event("change",{bubbles:true}));
   };
   const setLanguage=value=>{const select=$("#language-select");select.value=value;select.dispatchEvent(new window.Event("change",{bubbles:true}));};
-  return {window,$,requests,change,chooseType,setLanguage,close:()=>window.close()};
+  const setSystemDark=value=>{systemTheme.matches=value;systemTheme.dispatchEvent(new window.Event("change"));};
+  return {window,$,requests,windowOptions,change,chooseType,setLanguage,setSystemDark,close:()=>window.close()};
 }
+
+test("native close behavior defaults to background and saves the quit choice",()=>{
+  const desktop=workspace({hash:"#settings",desktop:true});
+  const android=workspace({hash:"#settings",android:true});
+  const browser=workspace({hash:"#settings"});
+  try {
+    assert.equal(browser.$("#close-behavior-row").hidden,true);
+    assert.deepEqual(desktop.windowOptions,[["background","en"]]);
+    assert.equal(android.window.CaveqisPlatform.handleBack(),"background");
+    android.$("#sidebar").classList.add("open");
+    assert.equal(android.window.CaveqisPlatform.handleBack(),"handled");
+    for (const app of [desktop,android]) {
+      assert.equal(app.$("#close-behavior-row").hidden,false);
+      const select=app.$("#close-behavior");
+      select.value="quit";
+      select.dispatchEvent(new app.window.Event("change"));
+      assert.equal(JSON.parse(app.window.localStorage.getItem("caveqis-close-behavior")),"quit");
+    }
+    assert.deepEqual(desktop.windowOptions.at(-1),["quit","en"]);
+    assert.equal(android.window.CaveqisPlatform.handleBack(),"quit");
+  } finally {desktop.close();android.close();browser.close();}
+});
 
 test("science has one math input and a shared operation selector",()=>{
   const app=workspace();
@@ -32,9 +65,10 @@ test("science has one math input and a shared operation selector",()=>{
     assert.equal(app.$("#tool-fields").querySelectorAll("input,textarea").length,1);
     assert.ok(app.$("#expression"));
     assert.equal(app.$("#input-card-heading").hidden,true);
-    assert.equal(app.$("#advanced-settings").hidden,true);
+    assert.equal(app.$("#assumption-setting").hidden,true);
+    assert.equal(app.$("#precision").value,"6");
     assert.deepEqual([...app.window.document.querySelectorAll(".nav-item[data-category]")].map(button => button.dataset.category),
-      ["calculate","equations","date","converter","graph"]);
+      ["calculate","equations","date","converter","graph","settings"]);
     const guide = app.$("#help-sidebar");
     assert.equal(guide.previousElementSibling.dataset.category,"graph");
     app.$("#help-dialog").showModal = () => { app.$("#help-dialog").open = true; };
@@ -46,6 +80,96 @@ test("science has one math input and a shared operation selector",()=>{
     assert.ok(app.$('#operation option[value="factor"]'));
     assert.equal(app.$('#operation option[value="equation_ode"]'),null);
     assert.equal(app.$('#operation option[value="equation_integral"]'),null);
+  } finally {app.close();}
+});
+
+test("Android keeps the chart and sliders together and follows the native theme",()=>{
+  const app = workspace({hash:"#graph",android:true});
+  try {
+    const chart = app.$(".graph-chart-card");
+    assert.equal(chart.previousElementSibling.id,"graph-keyboard");
+    assert.equal(chart.nextElementSibling.id,"graph-parameters");
+    assert.equal(app.$("#android-keypad"),null);
+    app.setSystemDark(true);
+    assert.ok(app.window.document.body.classList.contains("dark"));
+    const theme = app.$("#theme-select");
+    theme.value = "light";
+    theme.dispatchEvent(new app.window.Event("change"));
+    app.setSystemDark(true);
+    assert.equal(app.window.document.body.classList.contains("dark"),false);
+  } finally {app.close();}
+});
+
+test("Linux places parameter sliders below the graph and Windows keeps the original panel order",()=>{
+  const linux=workspace({hash:"#graph",userAgent:"Mozilla/5.0 (X11; Linux x86_64) Electron/45.4.1"});
+  const windows=workspace({hash:"#graph",userAgent:"Mozilla/5.0 (Windows NT 10.0) Electron/45.4.1"});
+  try {
+    assert.equal(linux.$("#graph-parameters").parentElement,linux.$(".graph-chart-card"));
+    assert.equal(windows.$("#graph-parameters").parentElement,windows.$(".graph-editor"));
+    assert.equal(windows.$(".graph-chart-card").parentElement,windows.$("#graph-panel"));
+  } finally {linux.close();windows.close();}
+});
+
+test("math keys preview while pressed and insert only on activation",()=>{
+  const app=workspace();
+  try {
+    const key=app.$('[data-target="expression"][data-insert="sin()"]');
+    key.dispatchEvent(new app.window.PointerEvent("pointerdown",{bubbles:true,button:0,pointerId:1,pointerType:"touch",isPrimary:true}));
+    assert.equal(app.$(".math-key-preview").textContent,"sin");
+    assert.equal(app.$(".math-key-preview").hidden,false);
+    assert.equal(app.$("#expression").value,"");
+    key.dispatchEvent(new app.window.PointerEvent("pointerup",{bubbles:true,pointerId:1,pointerType:"touch"}));
+    assert.equal(app.$(".math-key-preview").hidden,true);
+    assert.equal(app.$("#expression").value,"sin()");
+  } finally {app.close();}
+});
+
+test("settings turn off the next startup animation while language stays in the top bar",()=>{
+  const app=workspace();
+  try {
+    const startup=fs.readFileSync(path.join(root,"static/startup.js"),"utf8");
+    let hideSplash;
+    const originalTimer=app.window.setTimeout;
+    app.window.setTimeout=(callback,delay)=>{
+      assert.equal(delay,750);
+      hideSplash=callback;
+    };
+    app.window.eval(startup);
+    app.window.setTimeout=originalTimer;
+    assert.equal(app.$("#app-splash").hidden,false);
+    hideSplash();
+    app.$('[data-category="settings"]').click();
+    assert.equal(app.$("#settings-panel").hidden,false);
+    assert.ok(app.$(".topbar #language-select"));
+    const toggle=app.$("#startup-animation");
+    assert.equal(toggle.checked,true);
+    toggle.click();
+    app.window.eval(startup);
+    assert.equal(app.$("#app-splash").hidden,true);
+  } finally {app.close();}
+});
+
+test("a click on a graph crossing opens an anchored coordinate label",async()=>{
+  const app=workspace({hash:"#graph"});
+  try {
+    const canvas=app.$("#graph-canvas"), overlay=app.$("#graph-cursor-layer");
+    const ctx=Object.fromEntries("setTransform fillRect beginPath moveTo lineTo stroke fill fillText arc clearRect setLineDash save restore closePath".split(" ").map(name=>[name,()=>{}]));
+    ctx.measureText=text=>({width:text.length*8});
+    canvas.getContext=overlay.getContext=()=>ctx;
+    Object.defineProperties(canvas,{clientWidth:{value:600},clientHeight:{value:400}});
+    const inputs=[...app.window.document.querySelectorAll(".graph-formula")];
+    ["y=x","y=-x"].forEach((value,index)=>{
+      inputs[index].value=value;
+      inputs[index].dispatchEvent(new app.window.Event("input",{bubbles:true}));
+    });
+    await new Promise(resolve=>app.window.requestAnimationFrame(resolve));
+    for (const event of ["pointerdown","pointerup"]) {
+      canvas.dispatchEvent(new app.window.PointerEvent(event,{pointerId:1,pointerType:"mouse",button:0,clientX:300,clientY:200}));
+    }
+    const label=app.$("#graph-point-label");
+    assert.equal(label.hidden,false);
+    assert.match(label.textContent,/Intersection/);
+    assert.equal(label.lastElementChild.textContent,"(0, 0)");
   } finally {app.close();}
 });
 
@@ -295,7 +419,7 @@ test("variable palettes contain only letters and the backspace symbol",()=>{
   } finally {app.close();}
 });
 
-test("equation examples stay in their selected mode and submit only the single document",async()=>{
+test("equation examples stay in their selected mode and submit the chosen unknown separately",async()=>{
   const app=workspace();
   try {
     app.$('[data-category="equations"]').click();
@@ -303,13 +427,14 @@ test("equation examples stay in their selected mode and submit only the single d
     app.$('[data-example="0"]').click();
     assert.equal(app.$("#operation").value,"equation_integral");
     assert.equal(app.$("#expression").value,"y(x)=1+integrate(y(t),t,0,x)");
+    app.$("#variables").value="y(x)";
     app.$("#calculate-button").click();
     await new Promise(setImmediate);
     assert.equal(app.requests.length,1);
     assert.equal(app.requests[0].operation,"equation_integral");
     assert.equal(app.requests[0].category,"equations");
     assert.ok(!Object.hasOwn(app.requests[0],"substitutions"));
-    assert.ok(!Object.hasOwn(app.requests[0],"variables"));
+    assert.equal(app.requests[0].variables,"y(x)");
     assert.equal(app.$("#copy-result").hidden,false);
   } finally {app.close();}
 });
@@ -318,7 +443,7 @@ test("matrix form discovers factors, keeps entered matrices, and submits the cho
   const app = workspace();
   try {
     assert.equal(app.window.document.documentElement.lang,"en");
-    assert.deepEqual([...app.$("#precision").options].map(option => option.value),["2","3","4","6","31"]);
+    assert.equal(app.$("#precision").inputMode,"numeric");
     app.$('[data-category="equations"]').click();
     app.change("equation_matrix");
     const formula = app.$("#matrix-equation");
@@ -343,7 +468,7 @@ test("matrix form discovers factors, keeps entered matrices, and submits the cho
     await new Promise(setImmediate);
     const request = app.requests.at(-1);
     assert.equal(request.operation,"equation_matrix");
-    assert.equal(request.precision,"2");
+    assert.equal(request.decimalPlaces,"2");
     assert.deepEqual(JSON.parse(request.matrixEquation),{
       equation:"ABC=D",unknown:"B",matrices:{A:"1, 2\n0, 1",C:"2, 0\n1, 1",D:"24, 10\n10, 4"}
     });
@@ -470,7 +595,8 @@ test("old calculus equation histories reopen in the unified equation workspace",
       app.$(".history-entry").click();
       assert.ok(app.$('[data-category="equations"]').classList.contains("active"));
       assert.equal(app.$("#operation").value,operation);
-      assert.equal(app.$("#expression").value,expression);
+      assert.equal(app.$("#expression").value,expression.split("\nguess: ")[0]);
+      if (operation==="equation_numeric") assert.equal(app.$("#guesses").value,"1");
     } finally {app.close();}
   }
 });
@@ -482,7 +608,9 @@ test("old equation histories and bookmarks open in the equation workspace",()=>{
     assert.equal(app.$("#operation").value,"equation_auto");
     app.$(".history-entry").click();
     assert.equal(app.$("#operation").value,"equation_numeric");
-    assert.equal(app.$("#expression").value,"cos(x)=x\nvars: x\nguess: 1\ndomain: real");
+    assert.equal(app.$("#expression").value,"cos(x)=x\ndomain: real");
+    assert.equal(app.$("#variables").value,"x");
+    assert.equal(app.$("#guesses").value,"1");
     assert.equal(app.$("#copy-result").hidden,false);
   } finally {app.close();}
 });

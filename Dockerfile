@@ -1,8 +1,8 @@
-FROM python:3.12-slim
+FROM python:3.14.10-slim-bookworm@sha256:3fe1a0b6c2d6b2ebb572906cdabeca75aeb558c0c17db5ffefbcf8094871c32b
 
 LABEL org.opencontainers.image.title="CAVEQIS" \
       org.opencontainers.image.description="Browser-based mathematical toolbox" \
-      org.opencontainers.image.version="1.0.0"
+      org.opencontainers.image.version="1.2.0"
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app

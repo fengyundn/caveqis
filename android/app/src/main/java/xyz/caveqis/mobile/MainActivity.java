@@ -7,6 +7,8 @@ import android.content.ClipboardManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.res.Configuration;
+import android.graphics.Color;
 import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
@@ -18,7 +20,7 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.view.WindowInsets;
-import android.view.inputmethod.InputMethodManager;
+import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -57,6 +59,8 @@ public final class MainActivity extends Activity {
     private WebView web;
     private Messenger engine;
     private boolean bound;
+    private boolean foreground;
+    private boolean handlingBack;
     private int pendingId;
     private String pendingRequest;
     private ValueCallback<Uri[]> fileChooser;
@@ -70,6 +74,7 @@ public final class MainActivity extends Activity {
 
         @Override public void onServiceDisconnected(ComponentName name) {
             engine = null;
+            dispatchMcpResult(0, "{\"enabled\":false}");
             if (pendingId != 0) finishCalculation(CalculationService.failure(CalculationService.UNAVAILABLE));
         }
     };
@@ -88,6 +93,7 @@ public final class MainActivity extends Activity {
             });
         }
         setContentView(root);
+        applySystemTheme(getResources().getConfiguration());
         web.getSettings().setJavaScriptEnabled(true);
         web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setAllowFileAccess(false);
@@ -99,6 +105,39 @@ public final class MainActivity extends Activity {
         if (BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true);
         bound = bindService(new Intent(this, CalculationService.class), connection, BIND_AUTO_CREATE);
         web.loadUrl(START);
+    }
+
+    private static boolean systemDark(Configuration configuration) {
+        return (configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    private void applySystemTheme(Configuration configuration) {
+        boolean dark = systemDark(configuration);
+        int background = Color.parseColor(dark ? "#121622" : "#F4F6FC");
+        web.setBackgroundColor(background);
+        getWindow().getDecorView().setBackgroundColor(background);
+        if (Build.VERSION.SDK_INT < 35) {
+            getWindow().setStatusBarColor(background);
+            getWindow().setNavigationBarColor(background);
+        }
+        if (Build.VERSION.SDK_INT >= 30) {
+            int bars = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                | android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+            android.view.WindowInsetsController controller = getWindow().getInsetsController();
+            if (controller != null) controller.setSystemBarsAppearance(dark ? 0 : bars, bars);
+        } else {
+            int bars = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (Build.VERSION.SDK_INT >= 26) bars |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            View decor = getWindow().getDecorView();
+            decor.setSystemUiVisibility((decor.getSystemUiVisibility() & ~bars) | (dark ? 0 : bars));
+        }
+    }
+
+    @Override public void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        if (web == null) return;
+        applySystemTheme(configuration);
+        web.evaluateJavascript("window.dispatchEvent(new Event('caveqis-system-theme'))", null);
     }
 
     private static boolean isLocal(Uri uri) {
@@ -180,11 +219,12 @@ public final class MainActivity extends Activity {
                 .setPrimaryClip(ClipData.newPlainText("CAVEQIS", value)));
         }
 
-        @JavascriptInterface public void hideKeyboard() {
-            main.post(() -> {
-                if (web != null) getSystemService(InputMethodManager.class)
-                    .hideSoftInputFromWindow(web.getWindowToken(), 0);
-            });
+        @JavascriptInterface public boolean isSystemDark() {
+            return systemDark(getResources().getConfiguration());
+        }
+
+        @JavascriptInterface public void configureMcp(int id, boolean enabled) {
+            main.post(() -> sendMcpConfiguration(id, enabled && foreground));
         }
 
         @JavascriptInterface public void saveFile(String name, String type, String encoded) {
@@ -219,6 +259,10 @@ public final class MainActivity extends Activity {
     }
 
     private boolean receive(Message reply) {
+        if (reply.what == CalculationService.MCP_RESULT) {
+            dispatchMcpResult(reply.arg1, reply.getData().getString(CalculationService.BODY));
+            return true;
+        }
         if (reply.what != CalculationService.RESULT) return false;
         if (reply.arg1 == pendingId) finishCalculation(reply.getData().getString(CalculationService.BODY));
         return true;
@@ -234,6 +278,38 @@ public final class MainActivity extends Activity {
     private void dispatchResult(int id, String result) {
         if (web != null) web.evaluateJavascript("window.CaveqisPlatform.receive(" + id + ", "
             + JSONObject.quote(result) + ")", null);
+    }
+
+    private void sendMcpConfiguration(int id, boolean enabled) {
+        if (engine != null) {
+            Message task = Message.obtain(null, CalculationService.CONFIGURE_MCP);
+            task.arg1 = id;
+            task.arg2 = enabled ? 1 : 0;
+            task.replyTo = results;
+            try {
+                engine.send(task);
+                return;
+            } catch (RemoteException ignored) {
+                // An unavailable engine cannot accept new MCP connections.
+            }
+        }
+        dispatchMcpResult(id, enabled ? "{\"enabled\":false,\"error\":true}" : "{\"enabled\":false}");
+    }
+
+    private void dispatchMcpResult(int id, String result) {
+        if (web != null) web.evaluateJavascript("window.CaveqisPlatform?.receiveMcp(" + id + ", "
+            + JSONObject.quote(result) + ")", null);
+    }
+
+    @Override protected void onStart() {
+        super.onStart();
+        foreground = true;
+    }
+
+    @Override protected void onStop() {
+        foreground = false;
+        sendMcpConfiguration(0, false);
+        super.onStop();
     }
 
     private void chooseExport(String name, String type, byte[] contents) {
@@ -281,8 +357,12 @@ public final class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        web.evaluateJavascript("window.CaveqisPlatform.handleBack()", handled -> {
-            if (!"true".equals(handled)) finish();
+        if (handlingBack) return;
+        handlingBack = true;
+        web.evaluateJavascript("window.CaveqisPlatform?.handleBack()", action -> {
+            handlingBack = false;
+            if (isFinishing() || !foreground || "\"handled\"".equals(action)) return;
+            if ("\"quit\"".equals(action) || !moveTaskToBack(true)) finishAndRemoveTask();
         });
     }
 

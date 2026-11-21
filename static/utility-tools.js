@@ -4,6 +4,7 @@ const utilityViews = {
   date: {name:"日期计算", art:"＋ 1 d", description:["Find the days between dates or shift a date by years, months and days.","计算两个日期的间隔，或按年、月、日加减日期。"]},
   converter: {name:"转换器", art:"1 m ⇄ 100 cm", description:["Convert between units of measurement.","在不同的计量单位之间换算。"]},
   graph: {name:"图表", art:"y = f(x)", description:["Plot and compare functions, equations and curves on an interactive plane.","在交互坐标平面上绘制和比较函数、方程与曲线。"]},
+  settings: {name:"设置", art:"⚙", description:["Choose the color theme and startup animation.","选择颜色主题和启动动画。"]},
 };
 
 const utilityElement = id => document.getElementById(id);

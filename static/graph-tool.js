@@ -350,25 +350,30 @@ function drawGraph() {
   graphViewport = graphProjection(width,height,graphView);
   graphGeometry = {segments:[],points:[]};
   const dark = document.body.classList.contains("dark");
-  const colors = dark ? {background:"#1d2235",axes:"#8691ad",major:"#424a62",minor:"#343a50",labels:"#b6c0db"}
-    : {background:"#fff",axes:"#8993aa",major:"#dce2ee",minor:"#eef1f8",labels:"#58647e"};
+  const colors = dark ? {background:"#141a29",axes:"#8693b3",major:"#364157",minor:"#212b3d",labels:"#bac6df"}
+    : {background:"#fcfdff",axes:"#74819d",major:"#d8e0f0",minor:"#eef2f9",labels:"#52617d"};
   graphGrid(ctx,graphViewport,colors,graphElement("graph-grid").checked);
 
   const plots = graphCurrentPlots();
   const implicitCount = plots.filter(({plot})=>plot.kind==="implicit").length;
   const spacing = Math.max(graphMoving?9:4,Math.sqrt(width*height*Math.max(1,implicitCount)/(graphMoving?9000:36000)));
   const scope = graphScope();
+  const paths = [];
+  const showLandmarks = !graphMoving && graphElement("graph-intersections").checked;
   for (const {plot,index} of plots) {
+    const start = graphGeometry.segments.length;
     ctx.strokeStyle = ctx.fillStyle = graphColor(index,dark);
     ctx.lineJoin = ctx.lineCap = "round";
-    ctx.lineWidth = 2.15;
+    ctx.lineWidth = 2.35;
     const plotScope = Object.assign(Object.create(null),scope);
     if (plot.kind === "implicit") graphImplicit(ctx,plot,graphViewport,plotScope,spacing,graphGeometry);
     else graphSample(ctx,plot,graphViewport,plotScope,graphSettings,graphGeometry,graphMoving);
+    if (showLandmarks && (["y","x","parametric","polar"].includes(plot.kind) || plot.kind==="implicit" && plot.operator==="=")) {
+      paths.push({kind:plot.kind,segments:graphGeometry.segments.slice(start)});
+    }
   }
   if (!graphMoving) {
-    graphLandmarks = graphElement("graph-intersections").checked
-      ? graphIntersections(plots.map(({plot})=>plot),graphViewport,scope,true) : [];
+    graphLandmarks = showLandmarks ? graphIntersections(plots.map(({plot})=>plot),graphViewport,scope,true,paths) : [];
     renderGraphLandmarks();
     for (const {screen:point} of graphLandmarks) {
       ctx.beginPath();
@@ -386,9 +391,17 @@ function drawGraph() {
 
 const graphLandmarkName = {root:"零点",intersection:"交点",maximum:"极大值",minimum:"极小值","y-intercept":"纵截距"};
 
+function graphLandmarkKind(point) {
+  return point.kinds.map(kind=>tr(graphLandmarkName[kind])).join(" / ");
+}
+
 function graphLandmarkLabel(point) {
-  return point.kinds.map(kind=>tr(graphLandmarkName[kind])).join(" / ") +
-    `  (${graphDisplayNumber(point.x)}, ${graphDisplayNumber(point.y)})`;
+  return graphLandmarkKind(point) + "  " + graphLandmarkCoordinates(point);
+}
+
+function graphLandmarkCoordinates(point) {
+  const digits = point.approximate ? 5 : 7;
+  return (point.approximate ? "≈ " : "") + "(" + graphDisplayNumber(point.x,digits) + ", " + graphDisplayNumber(point.y,digits) + ")";
 }
 
 function renderGraphLandmarks() {
@@ -437,15 +450,40 @@ function renderGraphCursor() {
   ctx.setTransform(ratio,0,0,ratio,0,0);
   ctx.clearRect(0,0,graphViewport.width,graphViewport.height);
   const display=graphElement("graph-coordinate");
+  const label=graphElement("graph-point-label");
   if (graphLandmarkSelection) {
     const point = graphLandmarkSelection;
     display.textContent = graphLandmarkLabel(point);
+    const {width,height,toScreen} = graphViewport;
+    const [x,y] = toScreen(point.x,point.y);
+    label.hidden = x<0 || y<0 || x>width || y>height;
+    if (label.hidden) return;
+    label.firstElementChild.textContent = graphLandmarkKind(point);
+    label.lastElementChild.textContent = graphLandmarkCoordinates(point);
+    label.style.left = Math.max(6,Math.min(width-label.offsetWidth-6,x-label.offsetWidth/2)) + "px";
+    label.style.top = (y>label.offsetHeight+18 ? y-label.offsetHeight-12 : y+12) + "px";
+    const dark = document.body.classList.contains("dark");
+    const [axisX,axisY]=toScreen(0,0);
+    ctx.save();
+    ctx.setLineDash([3,4]);
+    ctx.strokeStyle=dark ? "#a1a7da85" : "#6357ce65";
+    ctx.lineWidth=1;
     ctx.beginPath();
-    ctx.arc(...graphViewport.toScreen(point.x,point.y),6.5,0,2*Math.PI);
-    ctx.fillStyle = document.body.classList.contains("dark") ? "#ded8ff" : "#5144c9";
+    ctx.moveTo(Math.max(0,Math.min(width,axisX)),y);
+    ctx.lineTo(x,y);
+    ctx.lineTo(x,Math.max(0,Math.min(height,axisY)));
+    ctx.stroke();
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(x,y,6.5,0,2*Math.PI);
+    ctx.fillStyle = dark ? "#b7aaff" : "#5745ce";
     ctx.fill();
+    ctx.strokeStyle = dark ? "#101525" : "#fff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
     return;
   }
+  label.hidden = true;
   if (!graphCursor || !graphElement("graph-trace").checked) {
     display.textContent = tr("移动指针可查看坐标");
     return;
@@ -532,7 +570,13 @@ for (const event of ["pointerup","pointercancel","lostpointercapture"]) graphCan
   graphPointers.delete(e.pointerId);
   if (event==="pointerup" && !graphDrag.moved && !graphMoving) {
     const pointer = graphPointer(e);
-    selectGraphLandmark(graphLandmarks.findIndex(({screen})=>Math.hypot(screen[0]-pointer[0],screen[1]-pointer[1])<12));
+    let nearest = -1;
+    let limit = e.pointerType === "touch" ? 19 : 12;
+    graphLandmarks.forEach(({screen}, index) => {
+      const distance = Math.hypot(screen[0]-pointer[0],screen[1]-pointer[1]);
+      if (distance < limit) { nearest = index; limit = distance; }
+    });
+    selectGraphLandmark(nearest);
   }
   graphDrag = graphPointers.size ? {...graphGesture(),view:{...graphView},moved:true} : null;
 });

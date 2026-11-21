@@ -23,6 +23,8 @@ import java.util.concurrent.Executors;
 public final class CalculationService extends Service {
     static final int CALCULATE = 1;
     static final int RESULT = 2;
+    static final int CONFIGURE_MCP = 3;
+    static final int MCP_RESULT = 4;
     static final String BODY = "body";
     static final String BUSY = "当前有计算正在进行，请稍后重试。";
     static final String UNAVAILABLE = "无法连接计算服务，请确认工具箱服务正在运行。";
@@ -31,6 +33,7 @@ public final class CalculationService extends Service {
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ExecutorService mcpWorker = Executors.newSingleThreadExecutor();
     private final Messenger messenger = new Messenger(new Handler(Looper.getMainLooper(), this::handle));
     private Runnable timeout;
 
@@ -43,6 +46,13 @@ public final class CalculationService extends Service {
     }
 
     private boolean handle(Message message) {
+        if (message.what == CONFIGURE_MCP && message.replyTo != null) {
+            final int id = message.arg1;
+            final boolean enabled = message.arg2 == 1;
+            final Messenger client = message.replyTo;
+            mcpWorker.execute(() -> send(client, MCP_RESULT, id, configureMcp(enabled)));
+            return true;
+        }
         if (message.what != CALCULATE || message.replyTo == null) return false;
 
         int id = message.arg1;
@@ -74,8 +84,7 @@ public final class CalculationService extends Service {
 
     private String calculate(String payload) {
         try {
-            if (!Python.isStarted()) Python.start(new AndroidPlatform(this));
-            String result = Python.getInstance().getModule("mobile_calculation")
+            String result = calculatorPython().getModule("mobile_calculation")
                 .callAttr("calculate", payload).toString();
             return result.length() <= MAX_RESULT
                 ? result : failure("计算超出资源限制，请简化表达式或缩小矩阵。");
@@ -85,8 +94,26 @@ public final class CalculationService extends Service {
         }
     }
 
+    private synchronized Python calculatorPython() {
+        if (!Python.isStarted()) Python.start(new AndroidPlatform(this));
+        return Python.getInstance();
+    }
+
+    private String configureMcp(boolean enabled) {
+        if (!enabled && !Python.isStarted()) return "{\"enabled\":false}";
+        try {
+            return calculatorPython().getModule("mobile_calculation").callAttr("configure_mcp", enabled).toString();
+        } catch (RuntimeException error) {
+            return "{\"enabled\":false,\"error\":true}";
+        }
+    }
+
     private static void send(Messenger client, int id, String result) {
-        Message reply = Message.obtain(null, RESULT);
+        send(client, RESULT, id, result);
+    }
+
+    private static void send(Messenger client, int type, int id, String result) {
+        Message reply = Message.obtain(null, type);
         reply.arg1 = id;
         Bundle data = new Bundle();
         data.putString(BODY, result);
@@ -100,6 +127,8 @@ public final class CalculationService extends Service {
 
     @Override public void onDestroy() {
         if (timeout != null) Process.killProcess(Process.myPid());
+        mcpWorker.execute(() -> configureMcp(false));
+        mcpWorker.shutdown();
         worker.shutdownNow();
         super.onDestroy();
     }
