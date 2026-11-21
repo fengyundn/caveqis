@@ -4,6 +4,7 @@ from importlib.metadata import distribution
 from pathlib import Path
 import shutil
 import sys
+import sysconfig
 
 from PIL import Image
 
@@ -19,8 +20,9 @@ large_icon.save(BUILD / "icon.png")
 large_icon.save(
     BUILD / "caveqis.ico", sizes=[(size, size) for size in (16, 24, 32, 48, 64, 128, 256)]
 )
-
 python_license = Path(sys.base_prefix) / "LICENSE.txt"
+if not python_license.is_file():
+    python_license = Path(sysconfig.get_path("stdlib")) / "LICENSE.txt"
 if not python_license.is_file() and sys.platform == "linux":
     python_license = Path(f"/usr/share/doc/python{sys.version_info.major}.{sys.version_info.minor}/copyright")
 shutil.copyfile(python_license, NOTICES / "Python-LICENSE.txt")

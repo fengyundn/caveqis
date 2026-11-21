@@ -1,7 +1,7 @@
 {
   "name": "caveqis",
   "productName": "CAVEQIS",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "CAVEQIS offline mathematical toolbox",
   "homepage": "https://github.com/fengyundn/caveqis",
@@ -14,9 +14,12 @@
     "electron": "45.4.1",
     "electron-builder": "26.18.0"
   },
+  "overrides": {
+    "minimatch@>=7.0.0 <11.0.1": "11.0.9"
+  },
   "build": {
     "appId": "xyz.caveqis.desktop",
-    "files": ["main.cjs"],
+    "files": ["main.cjs", "preload.cjs"],
     "extraResources": [
       {"from": ".build/engine/caveqis-engine", "to": "engine"},
       {"from": ".build/licenses", "to": "notices"},
@@ -31,6 +34,12 @@
       "category": "Education",
       "maintainer": "CAVEQIS Project <287415160+fengyundn@users.noreply.github.com>",
       "artifactName": "CAVEQIS-${version}-linux-${arch}.${ext}"
+    },
+    "deb": {
+      "depends": [
+        "libgtk-3-0", "libnotify4", "libnss3", "libxss1", "libxtst6", "xdg-utils",
+        "libatspi2.0-0", "libuuid1", "libsecret-1-0", "libgbm1", "libasound2 | libasound2t64"
+      ]
     },
     "nsis": {
       "artifactName": "CAVEQIS-Setup-${version}-win-${arch}.${ext}",

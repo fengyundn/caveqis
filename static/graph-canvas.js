@@ -319,19 +319,72 @@ function graphImplicit(ctx, plot, projection, scope, spacing, geometry) {
   ctx.setLineDash([]);
 }
 
-function graphIntersections(plots, projection, scope, annotated=false) {
+function graphSegmentCrossing([a,b], [c,d]) {
+  const ax=b[0]-a[0], ay=b[1]-a[1], bx=d[0]-c[0], by=d[1]-c[1];
+  const determinant=ax*by-ay*bx;
+  if (Math.abs(determinant)<1e-8) return null;
+  const dx=c[0]-a[0], dy=c[1]-a[1];
+  const t=(dx*by-dy*bx)/determinant;
+  const u=(dx*ay-dy*ax)/determinant;
+  return t>=0 && t<=1 && u>=0 && u<=1 ? [a[0]+t*ax,a[1]+t*ay] : null;
+}
+
+function graphPathIntersections(paths, {width,height,toWorld}, add) {
+  if (!paths.some(path=>path.kind!=="y")) return;
+  const buckets = new Map();
+  const cell = 28;
+  const columns = Math.ceil(width/cell);
+  const rows = Math.ceil(height/cell);
+  function cells([a,b]) {
+    const keys = [];
+    for (let y=Math.max(0,Math.floor(Math.min(a[1],b[1])/cell)); y<=Math.min(rows,Math.floor(Math.max(a[1],b[1])/cell)); y++) {
+      for (let x=Math.max(0,Math.floor(Math.min(a[0],b[0])/cell)); x<=Math.min(columns,Math.floor(Math.max(a[0],b[0])/cell)); x++) {
+        keys.push(y*(columns+1)+x);
+      }
+    }
+    return keys;
+  }
+  let comparisons = 0;
+  for (const path of paths) {
+    const entries = [];
+    for (const segment of path.segments) {
+      const keys = cells(segment);
+      const candidates = new Set();
+      for (const key of keys) {
+        for (const candidate of buckets.get(key) || []) {
+          if (path.kind!=="y" || candidate.kind!=="y") candidates.add(candidate.segment);
+        }
+      }
+      for (const candidate of candidates) {
+        if (++comparisons>64000) return;
+        const crossing = graphSegmentCrossing(segment,candidate);
+        if (crossing && add(...toWorld(...crossing),"intersection",true)===false) return;
+      }
+      entries.push({keys,segment,kind:path.kind});
+    }
+    for (const entry of entries) {
+      for (const key of entry.keys) {
+        if (!buckets.has(key)) buckets.set(key,[]);
+        buckets.get(key).push(entry);
+      }
+    }
+  }
+}
+
+function graphIntersections(plots, projection, scope, annotated=false, paths=[]) {
   const {width,height,toScreen,toWorld} = projection;
   const [left] = toWorld(0,0), [right] = toWorld(width,0);
   const functions = plots.filter(plot=>plot.kind==="y").slice(0,10);
   const count = Math.ceil(Math.min(width,650)/2);
   const points = [];
-  const add = (x,y,kind) => {
+  const add = (x,y,kind,approximate=false) => {
     const point = toScreen(x,y);
     if (!point.every(Number.isFinite) || point[0]<0 || point[0]>width || point[1]<0 || point[1]>height) return;
     const existing = points.find(old=>Math.hypot(point[0]-old.screen[0],point[1]-old.screen[1])<7);
     if (existing) {
       if (!existing.kinds.includes(kind)) existing.kinds.push(kind);
-    } else points.push({screen:point,x,y,kinds:[kind]});
+    } else points.push({screen:point,x,y,kinds:[kind],approximate});
+    return points.length<48;
   };
   const sample = functions.map(plot=>x=>graphCoordinate(scope,plot,x)?.[1] ?? NaN);
   const xs = Array.from({length:count+1},(_,i)=>left+(right-left)*i/count);
@@ -370,6 +423,7 @@ function graphIntersections(plots, projection, scope, annotated=false) {
     }
   }
   if (annotated) {
+    if (points.length<48) graphPathIntersections(paths,projection,add);
     for (let a=0;a<sample.length && points.length<48;a++) {
       const values = samples[a], fn = sample[a];
       for (let i=1;i<count && points.length<48;i++) {

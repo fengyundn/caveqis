@@ -5,7 +5,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 Push-Location -LiteralPath $PSScriptRoot
 try {
     $build = Join-Path $PSScriptRoot '.build'
-    $venv = Join-Path $build 'venv'
+    $venv = Join-Path $build 'venv-windows-3.14'
     $python = Join-Path $venv 'Scripts\python.exe'
     $repo = Split-Path -Parent $PSScriptRoot
     $static = Join-Path $repo 'static'
@@ -15,14 +15,14 @@ try {
             if ($PythonExe) {
                 & $PythonExe -m venv $venv
             } else {
-                py -3.12 -m venv $venv
+                py -3.14 -m venv $venv
             }
         }
         & $python -m pip install -r ../requirements.txt -r requirements-build.txt
         npm.cmd ci --no-audit --no-fund
     }
 
-    & $python -c "import platform,sys; sys.exit(0 if platform.machine().upper() == 'AMD64' else '64-bit x86 Python is required')"
+    & $python -c "import platform,sys; sys.exit(0 if platform.machine().upper() == 'AMD64' and sys.version_info >= (3,14,10) else 'Python 3.14.10 or newer (x64) is required. Recreate the build virtual environment after upgrading.')"
     & $python prepare_resources.py
     $pyinstallerArgs = @(
         '--noconfirm', '--onedir', '--name', 'caveqis-engine',

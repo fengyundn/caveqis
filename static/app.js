@@ -3,12 +3,13 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const defaultPrecision = "6";
-const precisionOptions = new Set([...$("#precision").options].map(option => option.value));
+const validDecimalPlaces = value => /^[0-9]{1,2}$/.test(value) && Number(value) <= 50;
 const storage = {
   get(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } },
   set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Private mode or full storage. */ } },
 };
+let decimalPlaces = String(storage.get("caveqis-decimal-places", "6"));
+if (!validDecimalPlaces(decimalPlaces)) decimalPlaces = "6";
 
 const tools = {
   calculate: {
@@ -49,7 +50,7 @@ const tools = {
   equations:{
     name:"方程", art:"Ax = b",
     operations:[["equation_auto","自动求解"],["equation_solve","单变量符号求根"],["equation_linear","线性方程组"],["equation_system","非线性方程组"],["equation_numeric","数值求根"],["equation_matrix","矩阵方程"],["equation_ode","常微分方程"],["equation_integral","积分方程（Volterra 型）"]],
-    defaults:{operation:"equation_auto",expression:""},
+    defaults:{operation:"equation_auto",expression:"",variables:"",guesses:""},
   },
 };
 
@@ -63,6 +64,17 @@ function currentExamples() {
   return [...selected, ...related].slice(0, Math.max(3, selected.length));
 }
 
+function separateEquationFields(data) {
+  data.expression = String(data.expression || "").split(/\r?\n/).filter(line => {
+    const match = /^\s*(vars|variables|unknowns|未知数|变量|guess|guesses|初值)\s*:\s*(\S.*?)\s*$/iu.exec(line);
+    if (!match) return true;
+    const key = /^(guess|guesses|初值)$/iu.test(match[1]) ? "guesses" : "variables";
+    data[key] ||= match[2];
+    return false;
+  }).join("\n");
+  return data;
+}
+
 function migrateEntry(entry) {
   if (!entry?.data) return entry;
   const data = {...entry.data};
@@ -71,11 +83,7 @@ function migrateEntry(entry) {
     destination = "equations";
     if (!String(data.operation).startsWith("equation_")) data.operation = "equation_" + (data.operation || "auto");
     if (data.equations) {
-      const settings = [];
-      if (data.variables) settings.push("vars: " + data.variables);
-      if (data.guesses && data.operation === "equation_numeric") settings.push("guess: " + data.guesses);
-      if (data.domain) settings.push("domain: " + data.domain);
-      data.expression = [data.equations, ...settings].join("\n");
+      data.expression = data.domain ? data.equations + "\ndomain: " + data.domain : data.equations;
     }
   } else if (destination === "calculate" && data.substitutions) {
     const lines = [data.expression, data.substitutions];
@@ -97,7 +105,8 @@ function migrateEntry(entry) {
   }
   if (destination === "equations") {
     if (!tools.equations.operations.some(([value]) => value === data.operation)) data.operation = "equation_auto";
-    for (const key of ["equations","variables","guesses","domain","substitutions"]) delete data[key];
+    separateEquationFields(data);
+    for (const key of ["equations","domain","substitutions"]) delete data[key];
   }
   data.category = destination;
   return {...entry, category: destination, data};
@@ -195,6 +204,7 @@ function operatorButtons(target) {
 function installKeypads(root = $("#tool-fields")) {
   for (const field of root.querySelectorAll("input, textarea")) {
     let kind = field.inputMode === "numeric" ? "integer" : "math";
+    if (kind === "integer" && document.documentElement.classList.contains("mobile-app")) continue;
     if (field.name === "variables") {
       kind = ["integral","analysis","series"].includes(category) || (category==="derivative" && drafts[category].operation==="differentiate") ? "symbol" : "variables";
     }
@@ -213,19 +223,34 @@ function collect() {
   const data = {...drafts[category]};
   if ($("#matrix-equation")) collectMatrixEquation();
   for (const [name,value] of new FormData($("#calculation-form"))) if (name !== "calculation-type" && !name.startsWith("matrix-equation")) data[name] = value;
-  if (category==="calculate") { delete data.substitutions; data.precision=defaultPrecision; data.assumption="complex"; }
+  if (validDecimalPlaces(data.decimalPlaces)) {
+    decimalPlaces = data.decimalPlaces;
+    storage.set("caveqis-decimal-places",decimalPlaces);
+  }
+  delete data.precision;
+  if (category==="calculate") { delete data.substitutions; data.assumption="complex"; }
   drafts[category] = data;
   if (category === "equations" && data.operation === "equation_matrix") {
     const {equation, unknown, matrices} = matrixEquationDraft;
     const names = matrixEquationNames(equation);
     const selected = Object.fromEntries(names.filter(name => name !== unknown).map(name => [name, matrices[name] || ""]));
-    return {category, operation:data.operation, precision:data.precision, assumption:data.assumption,
+    return {category, operation:data.operation, decimalPlaces:data.decimalPlaces, assumption:data.assumption,
       matrixEquation:JSON.stringify({equation, unknown, matrices:selected})};
   }
   const request={...data,category};
-  if (category==="equations") for (const key of ["variables","substitutions","bounds","lower","upper","order","point"]) delete request[key];
+  if (category==="equations" && data.operation!=="equation_numeric") delete request.guesses;
   return request;
 }
+
+function validateDecimalPlaces() {
+  const field = $("#precision");
+  const valid = validDecimalPlaces(field.value);
+  field.setCustomValidity(valid ? "" : tr("小数位数须为 0～50 的整数。"));
+  if (valid) field.removeAttribute("aria-invalid");
+  else field.setAttribute("aria-invalid","true");
+  return valid;
+}
+
 function resetResult() {
   latestResult = null;
   $("#copy-result").hidden = true;
@@ -274,7 +299,8 @@ function renderMatrixEquationDetails() {
 }
 function renderFields() {
   const draft = drafts[category];
-  const example = currentExamples()[0].data;
+  const exampleData = currentExamples()[0].data;
+  const example = category === "equations" ? separateEquationFields({...exampleData}) : exampleData;
   let html = operations(draft);
   const matrixEquation = category === "equations" && draft.operation === "equation_matrix";
   const determinant = category === "determinant";
@@ -304,8 +330,13 @@ function renderFields() {
       draft.operation === "summation" ? "级数通项 a(n)" : "数学表达式";
     html += expression(draft, label, example.expression);
     if (category === "equations") {
-      const hint = bilingual("Enter one equation per line. Add vars: x,y to choose unknowns, or guess: 1,1 for numerical solving.", "每行输入一个方程。可用 vars: x,y 指定未知数，数值求解可用 guess: 1,1 指定初值。");
-      html += `<p class="field-hint">${hint}</p>`;
+      const functional = ["equation_ode","equation_integral"].includes(draft.operation);
+      html += '<p class="field-hint">' + tr("每行输入一个方程。") + '</p>';
+      html += input("variables", "求解的未知数", draft.variables,{placeholder:functional ? "y(x)" : "x, y"});
+      html += '<p class="field-hint">' + tr("多个未知数用逗号分隔。未知函数可写为 y(x)。留空时自动识别。") + '</p>';
+      if (draft.operation === "equation_numeric") {
+        html += input("guesses","数值求根初值",draft.guesses,{placeholder:"1, 1"});
+      }
     } else if (category === "integral" && draft.operation !== "formula") {
       if (draft.operation === "multiple") {
         html += `<div class="field"><label class="field-label" for="bounds">${tr("积分变量与上下限")}<span class="label-note">${tr("按内层到外层排列")}</span></label>
@@ -337,13 +368,11 @@ function renderFields() {
   $("#tool-fields").innerHTML = html;
   const science = category === "calculate";
   $("#input-card-heading").hidden = science;
-  $("#advanced-settings").hidden = science;
-  $("#precision").disabled = science;
+  $("#assumption-setting").hidden = science;
   $("#assumption").disabled = science;
-  if (!science) {
-    $("#precision").value = precisionOptions.has(String(draft.precision)) ? draft.precision : defaultPrecision;
-    $("#assumption").value = draft.assumption || "complex";
-  }
+  $("#precision").value = decimalPlaces;
+  validateDecimalPlaces();
+  $("#assumption").value = draft.assumption || "complex";
   $("#input-card").setAttribute("aria-labelledby",science ? "expression-label" : "input-title");
   if (matrixEquation) renderMatrixEquationDetails();
   else installKeypads();
@@ -379,7 +408,7 @@ function renderSupport() {
     derivative: [["n 阶导数","diff(f,x,n)"],["混合偏导","x:2,y:1"],["梯度 / 全微分变量","x,y,z"],["在点处求值","x=1"]],
     analysis: [["极限","lim(f,x,a)"],["极限方向","-1 / 1"],["趋近无穷","oo / -oo"]],
     series: [["级数展开","series(f,x,a,n)"],["有限 / 无穷上限",bilingual("Integer / oo","整数 / oo")],["求和符号","∑(a(n),n,1,oo)"]],
-    equations: [["指定未知数","vars: x,y"],["数值初值","guess: 1,1"],["行列式","det([x,2],[3,4])"],["截断级数","trunc(f,x,0,6)"],["复数域","domain: complex"]],
+    equations: [["指定未知数","x, y"],["数值初值","1, 1"],["行列式","det([x,2],[3,4])"],["截断级数","trunc(f,x,0,6)"],["复数域","domain: complex"]],
   };
   const currentTips = category === "equations" && drafts.equations.operation === "equation_matrix"
     ? [["矩阵方程","ABC=D"],["矩阵乘积","A*X*B=D"],["未知矩阵",tr("出现一次")],["分隔行",tr("换行或分号")]]
@@ -445,7 +474,8 @@ function renderServiceState() {
   $("#service-label").textContent = tr(labels[serviceState]);
 }
 function renderGuide(section = $("#help-category").value || utilityPage || category) {
-  const categories = [["common","通用符号"], ...Object.entries({...tools,...utilityViews}).map(([key, tool]) => [key,tool.name])];
+  const categories = [["common","通用符号"], ...Object.entries({...tools,...utilityViews}).filter(([key])=>Object.hasOwn(guideContent,key)).map(([key,tool])=>[key,tool.name])];
+  if (!Object.hasOwn(guideContent,section)) section = "common";
   $("#help-category").innerHTML = categories.map(([key, name]) => `<option value="${key}">${escapeHTML(tr(name))}</option>`).join("");
   $("#help-category").value = section;
   $("#help-content").innerHTML = guideContent[section].map(({english,chinese,syntax,usageEn,usageZh}) =>
@@ -492,6 +522,10 @@ function platformRequest(url, options) {
 async function calculate(event) {
   event?.preventDefault();
   if (busy) return;
+  if (!validateDecimalPlaces()) {
+    $("#precision").reportValidity();
+    return;
+  }
   const data = collect();
   const requestRevision = revision;
   busy = true;
@@ -531,6 +565,7 @@ async function calculate(event) {
 
 $("#calculation-form").addEventListener("submit",calculate);
 $("#calculation-form").addEventListener("input",event=>{
+  if (event.target.id === "precision") validateDecimalPlaces();
   if (event.target.id === "matrix-equation" && !event.isComposing) {
     collectMatrixEquation();
     renderMatrixEquationDetails();
@@ -592,7 +627,7 @@ document.addEventListener("click",event=>{
       target=document.getElementById(button.dataset.target);
     }
     target.value = next.value;
-    target.focus({preventScroll:true});
+    if (!document.documentElement.classList.contains("mobile-app")) target.focus({preventScroll:true});
     target.setSelectionRange(next.start,next.end);
     target.dispatchEvent(new Event("input",{bubbles:true}));
   }
@@ -600,13 +635,14 @@ document.addEventListener("click",event=>{
   if (exampleButton) {
     collect();
     const example=currentExamples()[Number(exampleButton.dataset.example)];
-    const {precision, assumption, expression} = drafts[category];
+    const {assumption, expression} = drafts[category];
     const {matrixEquation, ...values} = example.data;
+    if (category === "equations") separateEquationFields(values);
     if (matrixEquation) {
       matrixEquationDraft = readMatrixEquation(matrixEquation);
       values.expression = expression;
     }
-    drafts[category] = {...tools[category].defaults, precision, assumption, ...values};
+    drafts[category] = {...tools[category].defaults, assumption, ...values};
     revision++; renderFields(); renderSupport(); resetResult(); toast("示例已填入");
   }
   const templateButton = event.target.closest("[data-template]");
@@ -626,6 +662,10 @@ document.addEventListener("click",event=>{
     collect();
     const {matrixEquation, ...values} = entry.data;
     if (matrixEquation) matrixEquationDraft = readMatrixEquation(matrixEquation) || {equation:"", unknown:"", matrices:{}};
+    if (validDecimalPlaces(values.decimalPlaces)) {
+      decimalPlaces = String(values.decimalPlaces);
+      storage.set("caveqis-decimal-places",decimalPlaces);
+    }
     drafts[entry.category] = {...tools[entry.category].defaults,...values};
     switchCategory(entry.category,false);
     renderResult(entry.result); toast("已恢复输入与计算结果");
@@ -669,18 +709,67 @@ $("#help-category").addEventListener("change", event => {
 });
 $("#close-help").addEventListener("click",()=>$("#help-dialog").close());
 $("#help-dialog").addEventListener("click",event=>{if(event.target===$("#help-dialog")){const r=event.target.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)event.target.close();}});
-$("#theme-toggle").addEventListener("click",()=>{
-  const dark=document.body.classList.toggle("dark");
-  storage.set("shuyan-theme",dark ? "dark" : "light");
-  $("#theme-toggle").setAttribute("aria-pressed",String(dark));
+const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+function applyTheme() {
+  const theme = $("#theme-select").value;
+  const dark = theme === "dark" || theme === "system" &&
+    (window.CaveqisPlatform?.isSystemDark?.() ?? systemTheme.matches);
+  document.body.classList.toggle("dark",dark);
   if (utilityPage==="graph") { updateGraphSwatches(); scheduleGraphDraw(); }
+}
+$("#theme-select").addEventListener("change", event => {
+  storage.set("shuyan-theme",event.target.value);
+  applyTheme();
 });
+$("#startup-animation").addEventListener("change", event => {
+  storage.set("caveqis-startup-animation",event.target.checked);
+});
+const closeBehaviorSelect = $("#close-behavior");
+function syncDesktopWindowOptions() {
+  window.CaveqisDesktop?.setWindowOptions(closeBehaviorSelect.value,language).catch(()=>{});
+}
+if (window.CaveqisDesktop || window.CaveqisPlatform?.handleBack) {
+  $("#close-behavior-row").hidden = false;
+  closeBehaviorSelect.value = storage.get("caveqis-close-behavior","background") === "quit" ? "quit" : "background";
+  closeBehaviorSelect.addEventListener("change",()=>{
+    storage.set("caveqis-close-behavior",closeBehaviorSelect.value);
+    syncDesktopWindowOptions();
+  });
+}
+if (window.CaveqisPlatform?.configureMcp) {
+  $("#mcp-mobile-settings").hidden = false;
+  const toggle = $("#mcp-enable");
+  let configuration;
+  const showMcp = status => {
+    configuration = status.enabled ? {url:status.url,headers:status.headers} : null;
+    toggle.checked = Boolean(configuration);
+    $("#mcp-details").hidden = !configuration;
+    $("#mcp-url").textContent = configuration?.url || "";
+    $("#mcp-status").textContent = status.error ? tr("MCP 服务无法启动。") : "";
+  };
+  toggle.addEventListener("change",async()=>{
+    toggle.disabled = true;
+    try { showMcp(await window.CaveqisPlatform.configureMcp(toggle.checked)); }
+    catch { showMcp({enabled:false,error:true}); }
+    finally { toggle.disabled = false; }
+  });
+  window.addEventListener("caveqis-mcp-status",event=>showMcp(event.detail));
+  $("#mcp-copy").addEventListener("click",()=>{
+    if (configuration) {
+      window.CaveqisPlatform.copyText(JSON.stringify(configuration,null,2));
+      toast("MCP 配置已复制");
+    }
+  });
+}
+systemTheme.addEventListener?.("change",applyTheme);
+window.addEventListener("caveqis-system-theme",applyTheme);
 $("#mobile-menu").addEventListener("click",()=>{const expanded=$("#sidebar").classList.toggle("open");$("#mobile-menu").setAttribute("aria-expanded",String(expanded));});
 $("#sidebar-close").addEventListener("click",closeNavigation);
 $("#language-select").addEventListener("change", event => {
   if (!utilityPage) collect();
   language = event.target.value;
   storage.set("shuyan-language",language);
+  syncDesktopWindowOptions();
   localizeShell();
   renderHeading(); renderHistory(); renderGuide(); renderServiceState();
   $("#toast").hidden = true;
@@ -697,9 +786,18 @@ window.addEventListener("hashchange",()=>{
   const next = location.hash.slice(1) || "calculate";
   if (next !== (utilityPage || category)) navigate(next);
 });
-if(storage.get("shuyan-theme","light")==="dark")document.body.classList.add("dark");
+const savedTheme = storage.get("shuyan-theme","system");
+$("#theme-select").value = ["system","light","dark"].includes(savedTheme) ? savedTheme : "system";
+$("#startup-animation").checked = storage.get("caveqis-startup-animation",true) !== false;
+applyTheme();
 language = storage.get("shuyan-language","en") === "zh" ? "zh" : "en";
+syncDesktopWindowOptions();
 localizeShell();
+mathInput.installKeyPreviews(document);
+if (/\bLinux\b.*\bElectron\//.test(navigator.userAgent)) {
+  document.documentElement.classList.add("linux-app");
+  $(".graph-chart-card").append($("#graph-parameters"));
+}
 navigate(Object.hasOwn(utilityViews,initialRoute) ? initialRoute : category,false);
 renderHistory();
 renderGuide();

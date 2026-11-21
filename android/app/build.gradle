@@ -15,8 +15,8 @@ android {
         applicationId 'xyz.caveqis.mobile'
         minSdk 24
         targetSdk 35
-        versionCode 110
-        versionName '1.1.0'
+        versionCode 120
+        versionName '1.2.0'
         ndk { abiFilters 'arm64-v8a', 'x86_64' }
     }
 
@@ -43,7 +43,7 @@ android {
 
 chaquopy {
     defaultConfig {
-        version '3.12'
+        version '3.14'
         if (System.getenv('CAVEQIS_BUILD_PYTHON')) {
             buildPython System.getenv('CAVEQIS_BUILD_PYTHON')
         }
@@ -60,7 +60,7 @@ chaquopy {
 
 tasks.register('syncCalculator', Sync) {
     from(sharedRoot) {
-        include 'calculation.py', 'engine.py', 'equation_solver.py'
+        include 'calculation.py', 'engine.py', 'equation_solver.py', 'caveqis_mcp.py'
     }
     into sharedPython
 }

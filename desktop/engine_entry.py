@@ -5,6 +5,14 @@ if __name__ == "__main__":
 
     freeze_support()
 
+    import sys
+
+    if sys.argv[1:] == ["--mcp"]:
+        from caveqis_mcp import stdio
+
+        stdio()
+        sys.exit(0)
+
     from hmac import compare_digest
     import os
     import threading

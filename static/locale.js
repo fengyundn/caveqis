@@ -74,6 +74,16 @@ const englishText = {
   "由 SymPy 提供计算支持": "Powered by SymPy", "关闭导航": "Close navigation", "切换导航": "Toggle navigation",
   "切换主题": "Toggle theme", "语言": "Language", "使用指南": "Guide", "输入指南": "Input guide", "关闭指南": "Close guide",
   "输入与设置": "Input and settings", "重置": "Reset", "有效数字": "Significant digits", "变量假设": "Variable assumptions",
+  "小数位数": "Decimal places", "小数位数须为 0～50 的整数。": "Enter a whole number from 0 to 50 for decimal places.",
+  "颜色主题": "Color theme", "跟随系统": "System", "浅色": "Light", "深色": "Dark",
+  "设置": "Settings", "外观与启动": "Appearance and startup", "启动动画": "Startup animation",
+  "关闭时": "When closing", "最小化到后台": "Minimize to background", "直接退出": "Quit",
+  "开启本机 MCP": "Enable local MCP", "复制 MCP 配置": "Copy MCP configuration",
+  "仅供本机应用连接，退出前台时自动关闭。": "For apps on this device. Stops when CAVEQIS leaves the foreground.",
+  "MCP 服务无法启动。": "Could not start the MCP server.", "MCP 配置已复制": "MCP configuration copied",
+  "求解的未知数": "Unknowns to solve for", "每行输入一个方程。": "Enter one equation per line.",
+  "多个未知数用逗号分隔。未知函数可写为 y(x)。留空时自动识别。": "Separate unknowns with commas. For an unknown function, use y(x). Leave blank to detect them automatically.",
+  "数值求根初值": "Starting values", "请填写方程中的未知函数，例如 y(x) 或 y。": "Enter the unknown function from the equation, for example y(x) or y.",
   "一般符号（复数）": "Complex (default)", "实数变量": "Real", "正实数变量": "Positive real",
   "结果": "Result", "复制结果": "Copy result", "试试这些": "Try these", "点击示例填入各输入框": "Click an example to fill the input fields.",
   "输入小贴士": "Input tips", "查看输入指南": "View input guide", "最近计算": "Recent calculations", "清空": "Clear",
@@ -118,7 +128,6 @@ function localizeShell() {
   for (const element of document.querySelectorAll("[data-text]")) element.textContent = tr(element.dataset.text);
   for (const element of document.querySelectorAll("[data-aria]")) element.setAttribute("aria-label", tr(element.dataset.aria));
   for (const element of document.querySelectorAll("[data-title]")) element.title = tr(element.dataset.title);
-  document.querySelector("#theme-toggle").title = tr("切换主题");
   document.querySelector("#language-select").value = language;
 }
 

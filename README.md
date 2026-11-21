@@ -27,7 +27,9 @@ All three installers are available in the [CAVEQIS v1.1.0 release](https://githu
 - **Interactive graphing.** Plot functions, implicit relations, inequalities, parametric curves, polar curves, and statistical charts. Explore the examples, adjust parameters with sliders, and export plots as PNGs.
 - **Everyday utilities.** Convert units and calculate date differences. Switch between English and Simplified Chinese or choose a light or dark theme.
 
-The desktop apps open in their own windows. The Android app includes an on-screen numeric keypad for entering expressions. A browser edition can also run locally or on a server. CAVEQIS uses SymPy for symbolic computation and KaTeX for formula rendering.
+The desktop apps open in their own windows. The 1.2.0 mobile interface uses the system keyboard alongside CAVEQIS's math keys. A browser edition can also run locally or on a server. CAVEQIS uses SymPy for symbolic computation and KaTeX for formula rendering.
+
+Version 1.2.0 includes a [local MCP interface](docs/mcp.md) for Windows, Linux, and Android. The downloads above are the published 1.1.0 installers.
 
 ## Installing
 
@@ -45,7 +47,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe app.py
 ```
 
-On Linux or macOS, use `.venv/bin/python` in the last two commands. Open the local app at `http://127.0.0.1:8765/`.
+On Linux, use `.venv/bin/python` in the last two commands. Open the local app at `http://127.0.0.1:8765/`.
 
 ### Docker
 
@@ -58,13 +60,13 @@ Open `http://127.0.0.1:8765/` in your browser. The [deployment templates](deploy
 
 ### Build the Windows installer
 
-On Windows x64, use PowerShell 7, Python 3.12 x64, and Node.js 22.12 or newer with npm.
+On Windows x64, use PowerShell 7, Python 3.14.10 or newer (x64), and Node.js 22.12 or newer with npm.
 
 ```powershell
 .\desktop\build-windows.ps1
 ```
 
-The installer is written to `desktop/dist/`. If the Windows Python launcher cannot find Python 3.12, pass its executable path with `-PythonExe`.
+The installer is written to `desktop/dist/`. If the Windows Python launcher cannot find Python 3.14, pass its executable path with `-PythonExe`.
 
 ## Documentation
 

@@ -12,6 +12,17 @@ const compile = (...expressions) => compileGraphRows(expressions.map(text=>({tex
 const near = (a,b,tolerance=1e-6) => assert.ok(Math.abs(a-b)<tolerance,`${a} ≠ ${b}`);
 const project = () => graphProjection(800,600,{x:0,y:0,span:12});
 
+test("crossing a traced implicit path and a vertical expression returns an approximate point",()=>{
+  const projection=project();
+  const path=(kind,start,end)=>({kind,segments:[[projection.toScreen(...start),projection.toScreen(...end)]]});
+  const paths=[path("implicit",[-2,2],[3,2]),path("x",[1,-3],[1,4])];
+  const points=graphIntersections([],projection,{},true,paths);
+  assert.equal(points.length,1);
+  assert.equal(points[0].approximate,true);
+  near(points[0].x,1);
+  near(points[0].y,2);
+});
+
 test("graph expressions support precedence, user functions, parameters and restrictions",()=>{
   const compilation=compile("a=2","f(x)=a*x²","y=f(x+1)-2^3^2","y=mx+b {-1≤x≤3}");
   assert.deepEqual([...compilation.parameters],["b","m"]);
