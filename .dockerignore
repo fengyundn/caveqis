@@ -1,5 +1,6 @@
 *
 !app.py
+!calculation.py
 !engine.py
 !equation_solver.py
 !requirements.txt

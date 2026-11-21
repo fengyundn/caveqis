@@ -1,0 +1,18 @@
+FROM node:24-bookworm AS toolchain
+ENV DEBIAN_FRONTEND=noninteractive
+RUN sed -i 's@http://deb.debian.org@https://deb.debian.org@g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-venv libpython3.11 fakeroot xz-utils zstd \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /work
+
+FROM toolchain AS builder
+COPY . .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/root/.npm \
+    --mount=type=cache,target=/root/.cache/electron \
+    --mount=type=cache,target=/root/.cache/electron-builder \
+    bash desktop/build-linux.sh
+
+FROM scratch AS release
+COPY --from=builder /work/desktop/dist/*.deb /

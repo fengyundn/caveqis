@@ -5,11 +5,10 @@ if __name__ == "__main__":
 
     freeze_support()
 
-    import ctypes
-    from ctypes import wintypes
     from hmac import compare_digest
     import os
     import threading
+    import time
 
     from waitress import create_server
 
@@ -28,20 +27,28 @@ if __name__ == "__main__":
 
     server = create_server(desktop_request, host="127.0.0.1", port=port, **SERVER_OPTIONS)
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
-    kernel32.OpenProcess.restype = wintypes.HANDLE
-    kernel32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
-    kernel32.WaitForSingleObject.restype = wintypes.DWORD
-    parent = kernel32.OpenProcess(0x00100000, False, parent_pid)
-    if not parent:
-        raise ctypes.WinError(ctypes.get_last_error())
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
 
-    def wait_for_window_to_close():
-        # Wait on a process handle instead of stdin. A blocked read on an
-        # inherited Windows pipe can hold up Python worker initialization.
-        kernel32.WaitForSingleObject(parent, 0xFFFFFFFF)
-        os._exit(0)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+        kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        parent = kernel32.OpenProcess(0x00100000, False, parent_pid)
+        if not parent:
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        def wait_for_window_to_close():
+            # A blocking read on inherited stdin can stall Windows workers.
+            kernel32.WaitForSingleObject(parent, 0xFFFFFFFF)
+            os._exit(0)
+    else:
+        def wait_for_window_to_close():
+            while os.getppid() == parent_pid:
+                time.sleep(0.25)
+            os._exit(0)
 
     print("CAVEQIS_READY", flush=True)
     threading.Thread(target=wait_for_window_to_close, daemon=True).start()

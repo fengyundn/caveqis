@@ -23,7 +23,8 @@ if (smokeReport) {
 
 function startEngine() {
   return new Promise((resolve, reject) => {
-    engine = spawn(path.join(resources, "engine", "caveqis-engine.exe"), [], {
+    const executable = process.platform === "win32" ? "caveqis-engine.exe" : "caveqis-engine";
+    engine = spawn(path.join(resources, "engine", executable), [], {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
       env: {
