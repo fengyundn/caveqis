@@ -2,13 +2,23 @@
 
 # CAVEQIS
 
-An offline mathematics toolbox for symbolic calculations, equations, and interactive graphs.
+An offline mathematics toolbox for symbolic and numerical calculations, equation solving, and interactive graphing. CAVEQIS runs on Windows, Linux, and Android without an account.
 
-[Download for Windows](https://github.com/fengyundn/caveqis/releases/latest) · [Documentation](#documentation) · [Report an issue](https://github.com/fengyundn/caveqis/issues)
+[Downloads](#downloads) · [Documentation](#documentation) · [Report an issue](https://github.com/fengyundn/caveqis/issues)
 
 [![Latest release](https://img.shields.io/github/v/release/fengyundn/caveqis?label=release)](https://github.com/fengyundn/caveqis/releases/latest)
 
 <img src="docs/images/graphing.webp" alt="CAVEQIS graphing workspace with a polar curve, expression editor, and math keypad" width="960">
+
+## Downloads
+
+All three installers are available in the [CAVEQIS v1.1.0 release](https://github.com/fengyundn/caveqis/releases/tag/v1.1.0).
+
+| Platform | Installer |
+| --- | --- |
+| Windows 10 and 11 (x64) | [Download Windows installer](https://github.com/fengyundn/caveqis/releases/download/v1.1.0/CAVEQIS-Setup-1.1.0-win-x64.exe) |
+| Linux (x86-64) | [Download Linux `.deb`](https://github.com/fengyundn/caveqis/releases/download/v1.1.0/CAVEQIS-1.1.0-linux-amd64.deb) |
+| Android | [Download Android `.apk`](https://github.com/fengyundn/caveqis/releases/download/v1.1.0/CAVEQIS-1.1.0-android.apk) |
 
 ## Overview
 
@@ -17,17 +27,13 @@ An offline mathematics toolbox for symbolic calculations, equations, and interac
 - **Interactive graphing.** Plot functions, implicit relations, inequalities, parametric curves, polar curves, and statistical charts. Explore the examples, adjust parameters with sliders, and export plots as PNGs.
 - **Everyday utilities.** Convert units and calculate date differences. Switch between English and Simplified Chinese or choose a light or dark theme.
 
-The Windows desktop app opens in its own window and works offline after installation. A browser edition can also run locally or on a server. CAVEQIS uses SymPy for symbolic computation and KaTeX for formula rendering.
+The desktop apps open in their own windows. The Android app includes an on-screen numeric keypad for entering expressions. A browser edition can also run locally or on a server. CAVEQIS uses SymPy for symbolic computation and KaTeX for formula rendering.
 
 ## Installing
 
-1. Open the [latest release](https://github.com/fengyundn/caveqis/releases/latest).
-2. Under **Assets**, download the `CAVEQIS-Setup-…-win-x64.exe` installer.
-3. Run the installer and open **CAVEQIS** from the Windows Start menu.
-
-The installer targets Windows 10 and 11 on x64. This release was tested on Windows 11 x64. The installer bundles the runtime, fonts, and calculation engine. An account and a separate Python installation are unnecessary.
-
-The installer is unsigned. Windows may display an unknown-publisher prompt. The release includes a SHA-256 checksum for the installer.
+- **Windows.** Run the `.exe` and open **CAVEQIS** from the Start menu. The installer is unsigned, so Windows may show an unknown-publisher prompt.
+- **Linux.** On Debian 12 x86-64, run `sudo apt install ./CAVEQIS-1.1.0-linux-amd64.deb` from the download directory. Then open **CAVEQIS** from your application menu.
+- **Android.** Open the `.apk` on your device to install it. If Android prompts you, allow app installation from the browser or file manager you used to open the file.
 
 ## Run from source
 
